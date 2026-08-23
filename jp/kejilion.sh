@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="4.5.5"
+sh_v="4.5.7"
 
 
 gl_hui='\e[37m'
@@ -24,7 +24,11 @@ kpanel_protocol_active() {
 	[ "${KJ_LIGHT_NODE_PROTOCOL:-}" = "1" ] ||
 	[ "${KJ_SSH_PORT_NONINTERACTIVE:-}" = "1" ] ||
 	[ "${KJ_DNS_NONINTERACTIVE:-}" = "1" ] ||
+	[ "${KJ_SYSTEM_RESOURCE_NONINTERACTIVE:-}" = "1" ] ||
+	[ "${KJ_NETWORK_OPERATIONS_NONINTERACTIVE:-}" = "1" ] ||
+	[ "${KJ_ACCOUNT_MANAGEMENT_NONINTERACTIVE:-}" = "1" ] ||
 	[ "${KJ_F2B_NONINTERACTIVE:-}" = "1" ] ||
+	[ "${KJ_SYSTEM_TUNING_NONINTERACTIVE:-}" = "1" ] ||
 	[ "${KJ_BBRV3_NONINTERACTIVE:-}" = "1" ] ||
 	[ "${KJ_APP_NONINTERACTIVE:-}" = "1" ] ||
 	[ "${KJ_APP_INTERACTIVE:-}" = "1" ] ||
@@ -200,7 +204,7 @@ ipv6_address=$(curl -s --max-time 1 https://v6.ipinfo.io/ip && echo)
 
 install() {
 	if [ $# -eq 0 ]; then
-		echo "未提供软件包参数!"
+		echo "パッケージパラメータが指定されていません!"
 		return 1
 	fi
 
@@ -252,7 +256,7 @@ check_disk_space() {
 	local available_space_mb=$(df -m "$path" | awk 'NR==2 {print $4}')
 
 	if [ "$available_space_mb" -lt "$required_space_mb" ]; then
-		echo -e "${gl_huang}ヒント：${gl_bai}磁盘空间不足！"
+		echo -e "${gl_huang}ヒント：${gl_bai}ディスク容量が足りません!"
 		echo "現在利用可能なスペース: $((available_space_mb/1024))G"
 		echo "最低限必要なスペース:${required_gb}G"
 		echo "インストールを続行できません。ディスク容量をクリアして、再試行してください。"
@@ -323,13 +327,13 @@ systemctl() {
 restart() {
 	systemctl restart "$1"
 	if [ $? -eq 0 ]; then
-		echo "$1 服务已重启。"
+		echo "$1サービスが再開されました。"
 	else
 		echo "エラー: 再起動$1サービスが失敗しました。"
 	fi
 }
 
-# 启动服务
+# サービス開始
 start() {
 	systemctl start "$1"
 	if [ $? -eq 0 ]; then
@@ -345,7 +349,7 @@ stop() {
 	if [ $? -eq 0 ]; then
 		echo "$1サービスが停止されました。"
 	else
-		echo "错误：停止 $1サービスが失敗しました。"
+		echo "エラー: 停止$1サービスが失敗しました。"
 	fi
 }
 
@@ -353,9 +357,9 @@ stop() {
 status() {
 	systemctl status "$1"
 	if [ $? -eq 0 ]; then
-		echo "$1 服务状态已显示。"
+		echo "$1サービスのステータスが表示されます。"
 	else
-		echo "エラー: 表示できません$1 服务状态。"
+		echo "エラー: 表示できません$1サービスのステータス。"
 	fi
 }
 
@@ -375,7 +379,7 @@ enable() {
 
 break_end() {
 	  echo -e "${gl_lv}操作が完了しました${gl_bai}"
-	  echo "按任意键继续..."
+	  echo "続行するには任意のキーを押してください..."
 	  read -n 1 -s -r -p ""
 	  echo ""
 	  clear
@@ -514,13 +518,13 @@ while true; do
 	echo "5. 指定したコンテナを再起動します。 9. すべてのコンテナを再起動します。"
 	echo "------------------------"
 	echo "11. 指定したコンテナを入力します。 12. コンテナのログを表示します。"
-	echo "13. 查看容器网络           14. 查看容器占用"
+	echo "13. コンテナネットワークを確認します。 14. コンテナ占有率を確認します。"
 	echo "------------------------"
 	echo "15. コンテナ ポート アクセスを有効にする 16. コンテナ ポート アクセスを閉じる"
 	echo "------------------------"
 	echo "0. 前のメニューに戻る"
 	echo "------------------------"
-	read -e -p "请输入你的选择: " sub_choice
+	read -e -p "選択肢を入力してください:" sub_choice
 	case $sub_choice in
 		1)
 			send_stats "新しいコンテナを作成する"
@@ -590,7 +594,7 @@ while true; do
 			echo ""
 			container_ids=$(docker ps -q)
 			echo "------------------------------------------------------------"
-			printf "%-25s %-25s %-25s\n" "コンテナ名" "网络名称" "IPアドレス"
+			printf "%-25s %-25s %-25s\n" "コンテナ名" "ネットワーク名" "IPアドレス"
 			for container_id in $container_ids; do
 				local container_info=$(docker inspect --format '{{ .Name }}{{ range $network, $config := .NetworkSettings.Networks }} {{ $network }} {{ $config.IPAddress }}{{ end }}' "$container_id")
 				local container_name=$(echo "$container_info" | awk '{print $1}')
@@ -604,7 +608,7 @@ while true; do
 			break_end
 			;;
 		14)
-			send_stats "查看容器占用"
+			send_stats "コンテナ占有率の表示"
 			docker stats --no-stream
 			break_end
 			;;
@@ -621,7 +625,7 @@ while true; do
 
 		16)
 			send_stats "コンテナポートへのアクセスをブロックする"
-			read -e -p "请输入容器名: " docker_name
+			read -e -p "コンテナ名を入力してください:" docker_name
 			ip_address
 			block_container_port "$docker_name" "$ipv4_address"
 			local docker_port=$(docker port $docker_name | awk -F'[:]' '/->/ {print $NF}' | uniq)
@@ -712,6 +716,7 @@ check_crontab_installed() {
 
 
 install_crontab() {
+	local package_manager
 
 	if [ -f /etc/os-release ]; then
 		. /etc/os-release
@@ -723,9 +728,18 @@ install_crontab() {
 				systemctl start cron
 				;;
 			centos|rhel|almalinux|rocky|fedora)
-				yum install -y cronie
-				systemctl enable crond
-				systemctl start crond
+				if command -v dnf >/dev/null 2>&1; then
+					package_manager=dnf
+				elif command -v yum >/dev/null 2>&1; then
+					package_manager=yum
+				else
+					echo "エラー: DNF/YUM が見つからないため、cronie をインストールできません"
+					return 1
+				fi
+				"$package_manager" install -y cronie || return 1
+				/bin/systemctl enable --now crond.service || return 1
+				command -v crontab >/dev/null 2>&1 || return 1
+				/bin/systemctl is-active --quiet crond.service || return 1
 				;;
 			alpine)
 				apk add --no-cache cronie
@@ -763,6 +777,7 @@ install_crontab() {
 		return
 	fi
 
+	command -v crontab >/dev/null 2>&1 || return 1
 	echo -e "${gl_lv}crontab がインストールされており、cron サービスが実行されています。${gl_bai}"
 }
 
@@ -775,7 +790,7 @@ docker_ipv6_on() {
 	local CONFIG_FILE="/etc/docker/daemon.json"
 	local REQUIRED_IPV6_CONFIG='{"ipv6": true, "fixed-cidr-v6": "2001:db8:1::/64"}'
 
-	# 检查配置文件是否存在，如果不存在则创建文件并写入默认设置
+	# 構成ファイルが存在するかどうかを確認し、存在しない場合はファイルを作成し、デフォルト設定を書き込みます
 	if [ ! -f "$CONFIG_FILE" ]; then
 		echo "$REQUIRED_IPV6_CONFIG" | jq . > "$CONFIG_FILE"
 		restart docker
@@ -819,7 +834,7 @@ docker_ipv6_off() {
 	# 現在の構成を読み取る
 	local ORIGINAL_CONFIG=$(<"$CONFIG_FILE")
 
-	# 使用jq处理配置文件的更新
+	# jq を使用して構成ファイルの更新を処理する
 	local UPDATED_CONFIG=$(echo "$ORIGINAL_CONFIG" | jq 'del(.["fixed-cidr-v6"]) | .ipv6 = false')
 
 	# 現在のIPv6ステータスを確認する
@@ -839,11 +854,11 @@ docker_ipv6_off() {
 
 save_iptables_rules() {
 	mkdir -p /etc/iptables
-	touch /etc/iptables/rules.v4
-	iptables-save > /etc/iptables/rules.v4
-	check_crontab_installed
-	crontab -l | grep -v 'iptables-restore' | crontab - > /dev/null 2>&1
-	(crontab -l ; echo '@reboot iptables-restore < /etc/iptables/rules.v4') | crontab - > /dev/null 2>&1
+	touch /etc/iptables/rules.v4 || return 1
+	iptables-save > /etc/iptables/rules.v4 || return 1
+	check_crontab_installed || return 1
+	crontab -l | grep -v 'iptables-restore' | crontab - > /dev/null 2>&1 || return 1
+	(crontab -l ; echo '@reboot iptables-restore < /etc/iptables/rules.v4') | crontab - > /dev/null 2>&1 || return 1
 
 }
 
@@ -851,17 +866,17 @@ save_iptables_rules() {
 
 
 iptables_open() {
-	install iptables
-	save_iptables_rules
-	iptables -P INPUT ACCEPT
-	iptables -P FORWARD ACCEPT
-	iptables -P OUTPUT ACCEPT
-	iptables -F
+	install iptables || return 1
+	save_iptables_rules || return 1
+	iptables -P INPUT ACCEPT || return 1
+	iptables -P FORWARD ACCEPT || return 1
+	iptables -P OUTPUT ACCEPT || return 1
+	iptables -F || return 1
 
-	ip6tables -P INPUT ACCEPT
-	ip6tables -P FORWARD ACCEPT
-	ip6tables -P OUTPUT ACCEPT
-	ip6tables -F
+	ip6tables -P INPUT ACCEPT || return 1
+	ip6tables -P FORWARD ACCEPT || return 1
+	ip6tables -P OUTPUT ACCEPT || return 1
+	ip6tables -F || return 1
 
 }
 
@@ -874,26 +889,26 @@ open_port() {
 		return 1
 	fi
 
-	install iptables
+	install iptables || return 1
 
 	for port in "${ports[@]}"; do
 		# 既存のシャットダウン ルールを削除する
 		iptables -D INPUT -p tcp --dport $port -j DROP 2>/dev/null
 		iptables -D INPUT -p udp --dport $port -j DROP 2>/dev/null
 
-		# 添加打开规则
+		# オープンルールを追加
 		if ! iptables -C INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null; then
 			iptables -I INPUT 1 -p tcp --dport $port -j ACCEPT
 		fi
 
 		if ! iptables -C INPUT -p udp --dport $port -j ACCEPT 2>/dev/null; then
 			iptables -I INPUT 1 -p udp --dport $port -j ACCEPT
-			echo "已打开端口 $port"
+			echo "ポートがオープンされました$port"
 		fi
 	done
 
-	save_iptables_rules
-	send_stats "ポートがオープンしました"
+	save_iptables_rules || return 1
+	send_stats "ポートがオープンされました"
 }
 
 
@@ -926,7 +941,7 @@ close_port() {
 	iptables -D INPUT -i lo -j ACCEPT 2>/dev/null
 	iptables -D FORWARD -i lo -j ACCEPT 2>/dev/null
 
-	# 插入新规则到第一条
+	# 最初のルールに新しいルールを挿入します
 	iptables -I INPUT 1 -i lo -j ACCEPT
 	iptables -I FORWARD 1 -i lo -j ACCEPT
 
@@ -975,7 +990,7 @@ block_ip() {
 		# ブロックルールを追加する
 		if ! iptables -C INPUT -s $ip -j DROP 2>/dev/null; then
 			iptables -I INPUT 1 -s $ip -j DROP
-			echo "已阻止IP $ip"
+			echo "IPがブロックされました$ip"
 		fi
 	done
 
@@ -990,7 +1005,7 @@ block_ip() {
 
 
 enable_ddos_defense() {
-	# 开启防御 DDoS
+	# DDoS 保護を有効にする
 	iptables -A DOCKER-USER -p tcp --syn -m limit --limit 500/s --limit-burst 100 -j ACCEPT
 	iptables -A DOCKER-USER -p tcp --syn -j DROP
 	iptables -A DOCKER-USER -p udp -m limit --limit 3000/s -j ACCEPT
@@ -1005,7 +1020,7 @@ enable_ddos_defense() {
 
 # DDoS 防御をオフにする
 disable_ddos_defense() {
-	# 关闭防御 DDoS
+	# DDoS 保護をオフにする
 	iptables -D DOCKER-USER -p tcp --syn -m limit --limit 500/s --limit-burst 100 -j ACCEPT 2>/dev/null
 	iptables -D DOCKER-USER -p tcp --syn -j DROP 2>/dev/null
 	iptables -D DOCKER-USER -p udp -m limit --limit 3000/s -j ACCEPT 2>/dev/null
@@ -1122,7 +1137,7 @@ iptables_panel() {
 		  echo "5. IP ホワイトリスト 6. IP ブラックリスト"
 		  echo "7. 指定したIPをクリアします"
 		  echo "------------------------"
-		  echo "11. 允许PING                  	 12. 禁止PING"
+		  echo "11. PING を許可する 12. PING を無効にする"
 		  echo "------------------------"
 		  echo "13. DDOS 防御を開始します。 14. DDOS 防御をオフにします。"
 		  echo "------------------------"
@@ -1178,12 +1193,12 @@ iptables_panel() {
 
 			  5)
 				  # IPホワイトリスト
-				  read -e -p "请输入放行的IP或IP段: " o_ip
+				  read -e -p "許可された IP または IP セグメントを入力してください:" o_ip
 				  allow_ip $o_ip
 				  ;;
 			  6)
-				  # IP 黑名单
-				  read -e -p "请输入封锁的IP或IP段: " c_ip
+				  # IPブラックリスト
+				  read -e -p "ブロックされた IP または IP 範囲を入力してください:" c_ip
 				  block_ip $c_ip
 				  ;;
 			  7)
@@ -1192,14 +1207,14 @@ iptables_panel() {
 				  iptables -D INPUT -s $d_ip -j ACCEPT 2>/dev/null
 				  iptables -D INPUT -s $d_ip -j DROP 2>/dev/null
 				  iptables-save > /etc/iptables/rules.v4
-				  send_stats "清除指定IP"
+				  send_stats "指定したIPをクリア"
 				  ;;
 			  11)
 				  # PINGを許可する
 				  iptables -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
 				  iptables -A OUTPUT -p icmp --icmp-type echo-reply -j ACCEPT
 				  iptables-save > /etc/iptables/rules.v4
-				  send_stats "允许PING"
+				  send_stats "PINGを許可する"
 				  ;;
 			  12)
 				  # PINGを無効にする
@@ -1216,14 +1231,14 @@ iptables_panel() {
 				  ;;
 
 			  15)
-				  read -e -p "ブロックされている国コードを入力してください (CN US JP のように、複数の国コードをスペースで区切ることができます)。" country_code
+				  read -e -p "ブロックされている国コードを入力してください (CN US JP のように、複数の国コードをスペースで区切ることができます):" country_code
 				  manage_country_rules block $country_code
 				  send_stats "国を許可する$country_codeIP"
 				  ;;
 			  16)
 				  read -e -p "許可されている国コードを入力してください (CN US JP のように、複数の国コードをスペースで区切ることができます)。" country_code
 				  manage_country_rules allow $country_code
-				  send_stats "阻止国家 $country_codeIP"
+				  send_stats "ブロック国$country_codeIP"
 				  ;;
 
 			  17)
@@ -1451,7 +1466,7 @@ install_certbot() {
 	local cron_job="0 0 * * * ~/auto_cert_renewal.sh"
 	crontab -l 2>/dev/null | grep -vF "$cron_job" | crontab -
 	(crontab -l 2>/dev/null; echo "$cron_job") | crontab -
-	echo "续签任务已更新"
+	echo "更新タスクが更新されました"
 }
 
 
@@ -1492,7 +1507,7 @@ install_ssltls_text() {
 	cat /etc/letsencrypt/live/$yuming/privkey.pem
 	echo ""
 	echo -e "${gl_huang}証明書の保存パス${gl_bai}"
-	echo "公钥: /etc/letsencrypt/live/$yuming/fullchain.pem"
+	echo "公開キー: /etc/letsencrypt/live/$yuming/fullchain.pem"
 	echo "秘密鍵: /etc/letsencrypt/live/$yuming/privkey.pem"
 	echo ""
 }
@@ -1558,7 +1573,7 @@ certs_status() {
 
 	local file_path="/etc/letsencrypt/live/$yuming/fullchain.pem"
 	if [ -f "$file_path" ]; then
-		send_stats "域名证书申请成功"
+		send_stats "ドメイン名証明書の申請が成功しました"
 	else
 		send_stats "ドメイン名証明書の申請に失敗しました"
 		if [ "${KJ_WEB_NONINTERACTIVE:-0}" = "1" ] &&
@@ -1568,7 +1583,7 @@ certs_status() {
 		fi
 		echo -e "${gl_hong}知らせ：${gl_bai}証明書の申請に失敗しました。次の考えられる理由を確認して、再試行してください。"
 		echo -e "1. ドメイン名のスペルが間違っています ➠ ドメイン名が正しく入力されているかどうかを確認してください"
-		echo -e "2. DNS解析问题 ➠ 确认域名已正确解析到本服务器IP"
+		echo -e "2. DNS 解決の問題 ➠ ドメイン名がサーバー IP に正しく解決されていることを確認します。"
 		echo -e "3. ネットワーク構成の問題 ➠ Cloudflare Warp などの仮想ネットワークを使用している場合は、一時的にシャットダウンしてください"
 		echo -e "4. ファイアウォールの制限 ➠ ポート 80/443 が開いているかどうかを確認し、アクセス可能であることを確認します。"
 		echo -e "5. アプリケーション数が制限を超えている ➠ Let's Encrypt には週制限あり (5 回/ドメイン名/週)"
@@ -1576,10 +1591,10 @@ certs_status() {
 		echo "------------------------"
 		echo "1. 再適用 2. 既存の証明書をインポート 0. 終了"
 		echo "------------------------"
-		read -e -p "请输入你的选择: " sub_choice
+		read -e -p "選択肢を入力してください:" sub_choice
 		case $sub_choice in
 	  	  1)
-	  	  	send_stats "重新申请"
+	  	  	send_stats "再申請"
 		  	echo "もう一度デプロイしてみてください$webname"
 		  	add_yuming
 		  	install_ssltls
@@ -1833,7 +1848,7 @@ cf_purge_cache() {
 	fi
   fi
 
-  # 循环遍历每个 zone_id 并执行清除缓存命令
+  # 各zone_idをループし、キャッシュクリアコマンドを実行します。
   for ZONE_ID in "${ZONE_IDS[@]}"; do
 	echo "zone_id のキャッシュをクリアします:$ZONE_ID"
 	curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/purge_cache" \
@@ -1951,7 +1966,7 @@ nginx_waf() {
 		return 1
 	fi
 
-	# 检查 nginx 镜像并根据情况处理
+	# nginx イメージを確認し、それに応じて処理します
 	if grep -q "kjlion/nginx:alpine" /home/web/docker-compose.yml; then
 		docker exec nginx nginx -s reload
 	else
@@ -2104,7 +2119,7 @@ nginx_br() {
 		sed -i '/brotli_types/,+6 s/^\(\s*\)#\s*/\1/' /home/web/nginx.conf
 
 	elif [ "$mode" == "off" ]; then
-		# Brotliを閉じる: コメントを追加
+		# ブロトリを閉じる: コメントを追加
 		sed -i 's|^load_module /etc/nginx/modules/ngx_http_brotli_filter_module.so;|# load_module /etc/nginx/modules/ngx_http_brotli_filter_module.so;|' /home/web/nginx.conf > /dev/null 2>&1
 		sed -i 's|^load_module /etc/nginx/modules/ngx_http_brotli_static_module.so;|# load_module /etc/nginx/modules/ngx_http_brotli_static_module.so;|' /home/web/nginx.conf > /dev/null 2>&1
 
@@ -2146,7 +2161,7 @@ nginx_zstd() {
 	fi
 
 	if [ "$mode" == "on" ]; then
-		# 开启 Zstd：去掉注释
+		# Zstd をオンにする: コメントを削除する
 		sed -i 's|# load_module /etc/nginx/modules/ngx_http_zstd_filter_module.so;|load_module /etc/nginx/modules/ngx_http_zstd_filter_module.so;|' /home/web/nginx.conf > /dev/null 2>&1
 		sed -i 's|# load_module /etc/nginx/modules/ngx_http_zstd_static_module.so;|load_module /etc/nginx/modules/ngx_http_zstd_static_module.so;|' /home/web/nginx.conf > /dev/null 2>&1
 
@@ -2181,7 +2196,7 @@ nginx_zstd() {
 		return 1
 	fi
 
-	# 检查 nginx 镜像并根据情况处理
+	# nginx イメージを確認し、それに応じて処理します
 	if grep -q "kjlion/nginx:alpine" /home/web/docker-compose.yml; then
 		docker exec nginx nginx -s reload
 	else
@@ -2232,7 +2247,7 @@ web_security() {
 			  echo "------------------------"
 			  echo "1. 防御プログラムをインストールする"
 			  echo "------------------------"
-			  echo "5. 查看SSH拦截记录                6. 查看网站拦截记录"
+			  echo "5. SSH 傍受記録の表示 6. Web サイト傍受記録の表示"
 			  echo "7. 防御ルールのリストを表示します。 8. リアルタイム監視のログを表示します。"
 			  echo "------------------------"
 			  echo "11. インターセプトパラメータを設定します。 12. ブロックされたすべての IP をクリアします。"
@@ -2350,7 +2365,7 @@ web_security() {
 					  ;;
 
 				  22)
-					  send_stats "高負荷により5秒シールドが可能"
+					  send_stats "高負荷で5秒シールド可能"
 					  echo -e "${gl_huang}Web サイトは 5 分ごとに自動的に検出します。高負荷を検出すると自動的にシールドが開き、低負荷を検出すると5秒間自動的にシールドが閉じます。${gl_bai}"
 					  echo "--------------"
 					  echo "CFパラメータを取得します。"
@@ -2360,7 +2375,7 @@ web_security() {
 					  echo "--------------"
 					  read -e -p "CF の口座番号を入力してください:" cfuser
 					  read -e -p "CF のグローバル API キーを入力します。" cftoken
-					  read -e -p "输入CF中域名的区域ID: " cfzonID
+					  read -e -p "CF にドメイン名のゾーン ID を入力します。" cfzonID
 
 					  cd ~
 					  install jq bc
@@ -2387,13 +2402,13 @@ web_security() {
 				  31)
 					  nginx_waf on
 					  echo "サイトWAFが有効になっています"
-					  send_stats "站点WAF已开启"
+					  send_stats "サイトWAFが有効になっています"
 					  ;;
 
 				  32)
 				  	  nginx_waf off
 					  echo "サイト WAF がダウンしています"
-					  send_stats "站点WAF已关闭"
+					  send_stats "サイト WAF がダウンしています"
 					  ;;
 
 				  33)
@@ -2419,7 +2434,7 @@ check_ldnmp_mode() {
 	local MYSQL_CONTAINER="mysql"
 	local MYSQL_CONF="/etc/mysql/conf.d/custom_mysql_config.cnf"
 
-	# 检查 MySQL 配置文件中是否包含 4096M
+	# MySQL 設定ファイルに 4096M が含まれているかどうかを確認する
 	if docker exec "$MYSQL_CONTAINER" grep -q "4096M" "$MYSQL_CONF" 2>/dev/null; then
 		mode_info="ハイパフォーマンスモード"
 	else
@@ -2526,7 +2541,7 @@ web_optimization() {
 			  send_stats "LDNMP環境の最適化"
 			  echo -e "LDNMP環境の最適化${gl_lv}${mode_info}${gzip_status}${br_status}${zstd_status}${gl_bai}"
 			  echo "------------------------"
-			  echo "1. 标准模式              2. 高性能模式 (推荐2H4G以上)"
+			  echo "1.スタンダードモード 2.ハイパフォーマンスモード(2H4G以上推奨)"
 			  echo "------------------------"
 			  echo "3. gzip 圧縮をオンにする 4. gzip 圧縮をオフにする"
 			  echo "5. br 圧縮をオンにする 6. br 圧縮をオフにする"
@@ -2656,7 +2671,7 @@ check_docker_image_update() {
 
 	# 2. インテリジェントな配線判断
 	if [[ "$full_image_name" == ghcr.io* ]]; then
-		# --- 场景 A: 镜像在 GitHub (ghcr.io) ---
+		# --- シナリオ A: GitHub (ghcr.io) 上のミラー ---
 		# ウェアハウスのパスを抽出します (例: ghcr.io/onexru/oneimg -> onexru/oneimg)
 		local repo_path=$(echo "$full_image_name" | sed 's/ghcr.io\///' | cut -d':' -f1)
 		# 注: ghcr.io の API は比較的複雑です。通常、最も早い方法は、GitHub リポジトリのリリースを確認することです。
@@ -2664,7 +2679,7 @@ check_docker_image_update() {
 		local remote_date=$(curl -s "$api_url" | jq -r '.published_at' 2>/dev/null)
 
 	elif [[ "$full_image_name" == *"oneimg"* ]]; then
-		# --- 场景 B: 特殊指定 (即便在 Docker Hub，也想通过 GitHub Release 判断) ---
+		# --- シナリオB：特別指定（Docker HubでもGitHub Releaseで判断したい） ---
 		local api_url="https://api.github.com/repos/onexru/oneimg/releases/latest"
 		local remote_date=$(curl -s "$api_url" | jq -r '.published_at' 2>/dev/null)
 
@@ -2709,7 +2724,7 @@ check_docker_image_update() {
 		local remote_ts=$(date -d "$remote_date" +%s 2>/dev/null)
 		if [[ "$container_created_ts" =~ ^[0-9]+$ && "$remote_ts" =~ ^[0-9]+$ ]] &&
 			[[ $container_created_ts -lt $remote_ts ]]; then
-			update_status="${gl_huang}发现新版本!${gl_bai}"
+			update_status="${gl_huang}新しいバージョンが見つかりました!${gl_bai}"
 		fi
 	fi
 }
@@ -2819,7 +2834,7 @@ block_host_port() {
 	install iptables
 
 
-	# 拒绝其他所有 IP 访问
+	# 他のすべての IP からのアクセスを拒否する
 	if ! iptables -C INPUT -p tcp --dport "$port" -j DROP &>/dev/null; then
 		iptables -I INPUT -p tcp --dport "$port" -j DROP
 	fi
@@ -3001,7 +3016,7 @@ kpanel_app_interactive_choice() {
 			esac
 			;;
 		*)
-			echo "错误: KPanel 交互终端不支持此应用操作"
+			echo "エラー: KPanel インタラクティブ ターミナルは、このアプリケーションの操作をサポートしていません"
 			return 1
 			;;
 	esac
@@ -3234,7 +3249,7 @@ kpanel_run_docker_app_install() {
 	kpanel_app_progress 15 "Docker実行環境の準備"
 	install jq || return 1
 	install_docker || return 1
-	kpanel_app_progress 30 "kejilion.sh アプリケーションインストール関数の実行"
+	kpanel_app_progress 30 "kejilion.shアプリケーションインストール関数の実行"
 
 	if [ "$adapter" = "plus" ]; then
 		if ! docker_app_install; then
@@ -3291,7 +3306,7 @@ kpanel_run_docker_app_action() {
 			echo "エラー: kejilion.sh アプリケーション インストール タグが見つかりません"
 			return 1
 		fi
-		kpanel_app_progress 10 "正在修复 kejilion.sh 应用安装标记"
+		kpanel_app_progress 10 "kejilion.sh アプリのインストールフラグを修正"
 		add_app_id || return 1
 	fi
 
@@ -3386,7 +3401,7 @@ while true; do
 	echo "5. ドメイン名アクセスを追加します。 6. ドメイン名アクセスを削除します。"
 	echo "7. IP+ポートアクセスを許可します。 8. IP+ポートアクセスをブロックします。"
 	echo "------------------------"
-	echo "0. 返回上一级选单"
+	echo "0. 前のメニューに戻る"
 	echo "------------------------"
 	if [ "${KJ_APP_INTERACTIVE:-}" = "1" ]; then
 		kpanel_app_interactive_choice choice || return 1
@@ -3455,7 +3470,7 @@ while true; do
 			rm -f /home/docker/${docker_name}_access.conf
 
 			sed -i "/\b${app_id}\b/d" /home/docker/appno.txt
-			echo "应用已卸载"
+			echo "アプリがアンインストールされました"
 			send_stats "アンインストールする$docker_name"
 			;;
 
@@ -3554,7 +3569,7 @@ docker_app_plus() {
 					kpanel_app_write_access_mode direct
 					send_stats "$app_nameインストール"
 				else
-					echo -e "${gl_hong}インストールに失敗しました:${gl_bai}未登记应用状态，请根据上方错误修复后重试。"
+					echo -e "${gl_hong}インストールに失敗しました:${gl_bai}申請状況が登録されていません。上記のエラーを修正して再試行してください。"
 					action_status=1
 				fi
 				;;
@@ -3563,9 +3578,9 @@ docker_app_plus() {
 				if docker_app_update; then
 					add_app_id
 					kpanel_app_restore_access_mode "$(kpanel_app_read_access_mode)"
-					send_stats "$app_name 更新"
+					send_stats "$app_name更新する"
 				else
-					echo -e "${gl_hong}更新に失敗しました:${gl_bai}已保留原应用登记状态。"
+					echo -e "${gl_hong}更新に失敗しました:${gl_bai}元のアプリケーションの登録ステータスは保持されます。"
 					action_status=1
 				fi
 				;;
@@ -3575,7 +3590,7 @@ docker_app_plus() {
 					rm -f /home/docker/${docker_name}_port.conf
 					rm -f /home/docker/${docker_name}_access.conf
 					sed -i "/\b${app_id}\b/d" /home/docker/appno.txt
-					send_stats "$app_name 卸载"
+					send_stats "$app_nameアンインストールする"
 				else
 					echo -e "${gl_hong}アンインストールに失敗しました:${gl_bai}アプリケーションの登録状態は保持されています。"
 					action_status=1
@@ -3583,8 +3598,8 @@ docker_app_plus() {
 				;;
 
 			5)
-				echo "${docker_name}域名访问设置"
-				send_stats "${docker_name}域名访问设置"
+				echo "${docker_name}ドメイン名アクセス設定"
+				send_stats "${docker_name}ドメイン名アクセス設定"
 				add_yuming
 				ldnmp_Proxy ${yuming} 127.0.0.1 ${docker_port}
 				local docker_check_name="${docker_app_service:-$docker_name}"
@@ -3723,7 +3738,7 @@ f2b_status_xxx() {
 
 check_f2b_status() {
 	if command -v fail2ban-client >/dev/null 2>&1; then
-		check_f2b_status="${gl_lv}已安装${gl_bai}"
+		check_f2b_status="${gl_lv}インストール済み${gl_bai}"
 	else
 		check_f2b_status="${gl_hui}インストールされていません${gl_bai}"
 	fi
@@ -3732,20 +3747,35 @@ check_f2b_status() {
 f2b_install_sshd() {
 
 	docker rm -f fail2ban >/dev/null 2>&1
-	install fail2ban
-	start fail2ban
-	enable fail2ban
+	install fail2ban || return 1
 
-	if command -v dnf &>/dev/null; then
+	if command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+		install rsyslog || return 1
+		/bin/systemctl enable --now rsyslog.service || return 1
 		cd /etc/fail2ban/jail.d/
-		curl -sS -O ${gh_proxy}raw.githubusercontent.com/kejilion/config/main/fail2ban/centos-ssh.conf
+		curl --fail --silent --show-error --location \
+			--output centos-ssh.conf \
+			"${gh_proxy}raw.githubusercontent.com/kejilion/config/main/fail2ban/centos-ssh.conf" || return 1
+		if [ ! -e /var/log/secure ]; then
+			touch /var/log/secure || return 1
+			chmod 0600 /var/log/secure || return 1
+			command -v restorecon >/dev/null 2>&1 && restorecon /var/log/secure || true
+		fi
 	fi
 
 	if command -v apt &>/dev/null; then
-		install rsyslog
-		systemctl start rsyslog
-		systemctl enable rsyslog
+		install rsyslog || return 1
+		/bin/systemctl enable --now rsyslog.service || return 1
 	fi
+
+	if command -v apk >/dev/null 2>&1; then
+		rc-update add fail2ban default || return 1
+		rc-service fail2ban start || return 1
+	else
+		/bin/systemctl enable --now fail2ban.service || return 1
+	fi
+	fail2ban-client -t >/dev/null 2>&1 || return 1
+	fail2ban-client reload >/dev/null 2>&1 || /bin/systemctl restart fail2ban.service
 
 }
 
@@ -3802,6 +3832,11 @@ kpanel_f2b_status() {
 kpanel_f2b_dispatch() {
 	local command="${1:-status}" changed=false
 	printf '%s\n' "KPANEL_F2B_PROTOCOL 1"
+	if [ "$command" = "manager" ]; then
+		shift
+		kpanel_f2b_manager_dispatch "$@"
+		return $?
+	fi
 	case "$command" in
 		status)
 			kpanel_f2b_status
@@ -3850,6 +3885,761 @@ kpanel_f2b_dispatch() {
 	esac
 }
 
+KPANEL_F2B_MANAGER_PROTOCOL_VERSION="1"
+
+kpanel_f2b_manager_config_file() {
+	printf '%s/etc/fail2ban/jail.d/99-kejilion-sshd.local\n' "${KPANEL_F2B_TEST_ROOT:-}"
+}
+
+kpanel_f2b_manager_log_file() {
+	printf '%s/var/log/fail2ban.log\n' "${KPANEL_F2B_TEST_ROOT:-}"
+}
+
+kpanel_f2b_manager_emit() {
+	local status="$1" version="${2:-}" backup="${3:-}"
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || version="$(kpanel_system_resource_zero_version)"
+	printf 'KPANEL_F2B_MANAGER_STATUS=%s\n' "$status"
+	printf 'KPANEL_F2B_MANAGER_VERSION=%s\n' "$version"
+	[ -z "$backup" ] || printf 'KPANEL_F2B_MANAGER_BACKUP=%s\n' "$backup"
+}
+
+kpanel_f2b_manager_error() {
+	printf 'エラー: %s\n' "$1" >&2
+}
+
+kpanel_f2b_manager_valid_address() {
+	local value="$1"
+	[ -n "$value" ] && [ "${#value}" -le 80 ] &&
+		[[ "$value" != *$'\n'* ]] && [[ "$value" != *$'\r'* ]] &&
+		command -v python3 >/dev/null 2>&1 &&
+		python3 -c 'import ipaddress,sys; value=sys.argv[1]; ipaddress.ip_network(value, strict=False) if "/" in value else ipaddress.ip_address(value)' "$value" >/dev/null 2>&1
+}
+
+kpanel_f2b_manager_valid_ip() {
+	local value="$1"
+	[ -n "$value" ] && [ "${#value}" -le 80 ] && [[ "$value" != */* ]] &&
+		command -v python3 >/dev/null 2>&1 &&
+		python3 -c 'import ipaddress,sys; ipaddress.ip_address(sys.argv[1])' "$value" >/dev/null 2>&1
+}
+
+kpanel_f2b_manager_profile_values() {
+	case "$1" in
+		mild) printf '%s\n' "600 600 8" ;;
+		standard) printf '%s\n' "3600 600 5" ;;
+		strict) printf '%s\n' "43200 600 3" ;;
+		*) return 1 ;;
+	esac
+}
+
+kpanel_f2b_manager_profile() {
+	case "$1:$2:$3" in
+		600:600:8) printf '%s\n' "mild" ;;
+		3600:600:5) printf '%s\n' "standard" ;;
+		43200:600:3) printf '%s\n' "strict" ;;
+		*) printf '%s\n' "custom" ;;
+	esac
+}
+
+kpanel_f2b_manager_read_number() {
+	local jail="$1" key="$2" fallback="$3" value
+	value="$(fail2ban-client get "$jail" "$key" 2>/dev/null | tail -n 1 | tr -d '[:space:]')" || true
+	[[ "$value" =~ ^[0-9]+$ ]] && [ "$value" -le 315360000 ] || value="$fallback"
+	printf '%s\n' "$value"
+}
+
+kpanel_f2b_manager_collect() {
+	local status_file token raw line hex log_file
+	F2B_MANAGER_INSTALLED=false
+	F2B_MANAGER_RUNNING=false
+	F2B_MANAGER_ENABLED=false
+	F2B_MANAGER_AUTOSTART=false
+	F2B_MANAGER_JAIL="$(kpanel_f2b_jail_name)"
+	F2B_MANAGER_CURRENT_FAILED=0
+	F2B_MANAGER_TOTAL_FAILED=0
+	F2B_MANAGER_CURRENT_BANNED=0
+	F2B_MANAGER_TOTAL_BANNED=0
+	F2B_MANAGER_BANTIME=3600
+	F2B_MANAGER_FINDTIME=600
+	F2B_MANAGER_MAXRETRY=5
+	F2B_MANAGER_PROFILE=standard
+	F2B_MANAGER_BANS=()
+	F2B_MANAGER_TRUSTED=()
+	F2B_MANAGER_EVENTS=()
+	F2B_MANAGER_BANS_TRUNCATED=false
+
+	command -v fail2ban-client >/dev/null 2>&1 || return 0
+	F2B_MANAGER_INSTALLED=true
+	fail2ban-client ping >/dev/null 2>&1 || {
+		kpanel_f2b_autostart && F2B_MANAGER_AUTOSTART=true
+		return 0
+	}
+	F2B_MANAGER_RUNNING=true
+	kpanel_f2b_autostart && F2B_MANAGER_AUTOSTART=true
+	status_file="$(mktemp /tmp/kejilion-f2b-status.XXXXXX)" || return 1
+	if ! fail2ban-client status "$F2B_MANAGER_JAIL" > "$status_file" 2>/dev/null; then
+		rm -f -- "$status_file"
+		return 0
+	fi
+	if ! kpanel_system_resource_file_within_bounds "$status_file" 4194304 4096; then
+		rm -f -- "$status_file"
+		return 1
+	fi
+	F2B_MANAGER_ENABLED=true
+	F2B_MANAGER_CURRENT_FAILED="$(awk -F: '/Currently failed/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$status_file")"
+	F2B_MANAGER_TOTAL_FAILED="$(awk -F: '/Total failed/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$status_file")"
+	F2B_MANAGER_CURRENT_BANNED="$(awk -F: '/Currently banned/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$status_file")"
+	F2B_MANAGER_TOTAL_BANNED="$(awk -F: '/Total banned/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$status_file")"
+	for token in F2B_MANAGER_CURRENT_FAILED F2B_MANAGER_TOTAL_FAILED F2B_MANAGER_CURRENT_BANNED F2B_MANAGER_TOTAL_BANNED; do
+		raw="${!token}"
+		[[ "$raw" =~ ^[0-9]+$ ]] && [ "$raw" -le 1000000000 ] || printf -v "$token" '%s' 0
+	done
+	raw="$(awk -F: '/Banned IP list/{sub(/^[^:]*:[[:space:]]*/, ""); print; exit}' "$status_file")"
+	rm -f -- "$status_file"
+	for token in $raw; do
+		if kpanel_f2b_manager_valid_ip "$token"; then
+			if [ "${#F2B_MANAGER_BANS[@]}" -lt 256 ]; then
+				F2B_MANAGER_BANS+=("$token")
+			else
+				F2B_MANAGER_BANS_TRUNCATED=true
+				break
+			fi
+		fi
+	done
+
+	F2B_MANAGER_BANTIME="$(kpanel_f2b_manager_read_number "$F2B_MANAGER_JAIL" bantime 3600)"
+	F2B_MANAGER_FINDTIME="$(kpanel_f2b_manager_read_number "$F2B_MANAGER_JAIL" findtime 600)"
+	F2B_MANAGER_MAXRETRY="$(kpanel_f2b_manager_read_number "$F2B_MANAGER_JAIL" maxretry 5)"
+	[ "$F2B_MANAGER_MAXRETRY" -ge 1 ] && [ "$F2B_MANAGER_MAXRETRY" -le 1000 ] || F2B_MANAGER_MAXRETRY=5
+	F2B_MANAGER_PROFILE="$(kpanel_f2b_manager_profile "$F2B_MANAGER_BANTIME" "$F2B_MANAGER_FINDTIME" "$F2B_MANAGER_MAXRETRY")"
+
+	raw="$(fail2ban-client get "$F2B_MANAGER_JAIL" ignoreip 2>/dev/null || true)"
+	for token in $raw; do
+		token="${token#[}"
+		token="${token%]}"
+		token="${token%,}"
+		token="${token#\'}"
+		token="${token%\'}"
+		if kpanel_f2b_manager_valid_address "$token"; then
+			[ "${#F2B_MANAGER_TRUSTED[@]}" -ge 64 ] || F2B_MANAGER_TRUSTED+=("$token")
+		fi
+	done
+
+	log_file="$(kpanel_f2b_manager_log_file)"
+	if [ -f "$log_file" ] && [ ! -L "$log_file" ]; then
+		while IFS= read -r line; do
+			[ "${#line}" -le 2048 ] || line="${line:0:2048}"
+			hex="$(printf '%s' "$line" | od -An -v -tx1 | tr -d ' \n')" || continue
+			[ -n "$hex" ] && F2B_MANAGER_EVENTS+=("$hex")
+		done < <(tail -n 200 -- "$log_file" 2>/dev/null | grep -E '\[(sshd|alpine-sshd)\].*(Found|Ban|Unban)[[:space:]]' | tail -n 20)
+	fi
+}
+
+kpanel_f2b_manager_set_version() {
+	local canonical config_file config_hash=absent value version
+	kpanel_f2b_manager_collect || return 1
+	canonical="$(mktemp /tmp/kejilion-f2b-version.XXXXXX)" || return 1
+	config_file="$(kpanel_f2b_manager_config_file)"
+	if [ -f "$config_file" ] && [ ! -L "$config_file" ]; then
+		config_hash="$(sha256sum -- "$config_file" 2>/dev/null | awk '{print $1}')"
+	fi
+	{
+		printf 'installed=%s\nrunning=%s\nenabled=%s\nautostart=%s\njail=%s\n' \
+			"$F2B_MANAGER_INSTALLED" "$F2B_MANAGER_RUNNING" "$F2B_MANAGER_ENABLED" "$F2B_MANAGER_AUTOSTART" "$F2B_MANAGER_JAIL"
+		printf 'bantime=%s\nfindtime=%s\nmaxretry=%s\nconfig=%s\n' \
+			"$F2B_MANAGER_BANTIME" "$F2B_MANAGER_FINDTIME" "$F2B_MANAGER_MAXRETRY" "$config_hash"
+		printf '%s\n' "${F2B_MANAGER_TRUSTED[@]}" | sed '/^$/d' | sort -u | sed 's/^/trusted=/'
+	} > "$canonical"
+	version="$(sha256sum -- "$canonical" 2>/dev/null | awk '{print $1}')"
+	rm -f -- "$canonical"
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || return 1
+	F2B_MANAGER_VERSION="$version"
+}
+
+kpanel_f2b_manager_current_version() {
+	kpanel_f2b_manager_set_version || return 1
+	printf '%s\n' "$F2B_MANAGER_VERSION"
+}
+
+kpanel_f2b_manager_snapshot() {
+	local status="${1:-ok}" backup="${2:-}" version value
+	kpanel_f2b_manager_set_version || {
+		kpanel_f2b_manager_emit failed ""
+		return 1
+	}
+	version="$F2B_MANAGER_VERSION"
+	kpanel_f2b_manager_emit "$status" "$version" "$backup"
+	printf 'KPANEL_F2B_MANAGER_INSTALLED=%s\n' "$F2B_MANAGER_INSTALLED"
+	printf 'KPANEL_F2B_MANAGER_RUNNING=%s\n' "$F2B_MANAGER_RUNNING"
+	printf 'KPANEL_F2B_MANAGER_ENABLED=%s\n' "$F2B_MANAGER_ENABLED"
+	printf 'KPANEL_F2B_MANAGER_AUTOSTART=%s\n' "$F2B_MANAGER_AUTOSTART"
+	printf 'KPANEL_F2B_MANAGER_JAIL=%s\n' "$F2B_MANAGER_JAIL"
+	printf 'KPANEL_F2B_MANAGER_CURRENT_FAILED=%s\n' "$F2B_MANAGER_CURRENT_FAILED"
+	printf 'KPANEL_F2B_MANAGER_TOTAL_FAILED=%s\n' "$F2B_MANAGER_TOTAL_FAILED"
+	printf 'KPANEL_F2B_MANAGER_CURRENT_BANNED=%s\n' "$F2B_MANAGER_CURRENT_BANNED"
+	printf 'KPANEL_F2B_MANAGER_TOTAL_BANNED=%s\n' "$F2B_MANAGER_TOTAL_BANNED"
+	printf 'KPANEL_F2B_MANAGER_BANTIME=%s\n' "$F2B_MANAGER_BANTIME"
+	printf 'KPANEL_F2B_MANAGER_FINDTIME=%s\n' "$F2B_MANAGER_FINDTIME"
+	printf 'KPANEL_F2B_MANAGER_MAXRETRY=%s\n' "$F2B_MANAGER_MAXRETRY"
+	printf 'KPANEL_F2B_MANAGER_PROFILE=%s\n' "$F2B_MANAGER_PROFILE"
+	printf 'KPANEL_F2B_MANAGER_BANS_TRUNCATED=%s\n' "$F2B_MANAGER_BANS_TRUNCATED"
+	for value in "${F2B_MANAGER_BANS[@]}"; do printf 'KPANEL_F2B_MANAGER_BAN=%s\n' "$value"; done
+	for value in "${F2B_MANAGER_TRUSTED[@]}"; do printf 'KPANEL_F2B_MANAGER_TRUSTED=%s\n' "$value"; done
+	for value in "${F2B_MANAGER_EVENTS[@]}"; do printf 'KPANEL_F2B_MANAGER_EVENT_HEX=%s\n' "$value"; done
+}
+
+kpanel_f2b_manager_set_file_identity() {
+	local path="$1"
+	if [ -n "${KPANEL_F2B_TEST_ROOT:-}" ]; then
+		chmod 600 -- "$path"
+	else
+		chown 0:0 -- "$path" && chmod 600 -- "$path"
+	fi
+}
+
+kpanel_f2b_manager_write_config() {
+	local jail="$1" bantime="$2" findtime="$3" maxretry="$4" config_file config_dir temporary value
+	shift 4
+	config_file="$(kpanel_f2b_manager_config_file)"
+	config_dir="$(dirname -- "$config_file")"
+	[ -d "$config_dir" ] && [ ! -L "$config_dir" ] && [ ! -L "$config_file" ] || return 1
+	temporary="$(mktemp "$config_dir/.99-kejilion-sshd.local.XXXXXX")" || return 1
+	{
+		printf '[%s]\n' "$jail"
+		printf '%s\n' '# Managed by kejilion.sh for SSH defense'
+		printf 'enabled = true\nbantime = %s\nfindtime = %s\nmaxretry = %s\n' "$bantime" "$findtime" "$maxretry"
+		if [ "$#" -gt 0 ]; then
+			printf 'ignoreip ='
+			for value in "$@"; do printf ' %s' "$value"; done
+			printf '\n'
+		fi
+	} > "$temporary" || { rm -f -- "$temporary"; return 1; }
+	kpanel_f2b_manager_set_file_identity "$temporary" && mv -f -- "$temporary" "$config_file"
+}
+
+kpanel_f2b_manager_restore_config() {
+	local snapshot="$1" config_file
+	config_file="$(kpanel_f2b_manager_config_file)"
+	if [ "$(cat "$snapshot/config.existed" 2>/dev/null)" = true ]; then
+		cp -a -- "$snapshot/config" "$config_file" || return 1
+	else
+		rm -f -- "$config_file" || return 1
+	fi
+	fail2ban-client -t >/dev/null 2>&1 && fail2ban-client reload >/dev/null 2>&1
+}
+
+kpanel_f2b_manager_config_failure() {
+	local snapshot="$1" message="$2" version recovery=""
+	kpanel_f2b_manager_error "$message"
+	if kpanel_f2b_manager_restore_config "$snapshot"; then
+		version="$(kpanel_f2b_manager_current_version 2>/dev/null || true)"
+		rm -rf -- "$snapshot"
+		kpanel_f2b_manager_emit failed "$version"
+	else
+		recovery="$(kpanel_system_resource_persist_recovery_snapshot "$snapshot" ssh-defense 2>/dev/null || true)"
+		version="$(kpanel_f2b_manager_current_version 2>/dev/null || true)"
+		kpanel_f2b_manager_emit rollback-failed "$version" "$recovery"
+	fi
+	return 1
+}
+
+kpanel_f2b_manager_config_action() {
+	local action="$1" expected="$2" value="$3" current_version profile bantime findtime maxretry snapshot config_file
+	local trusted=() item changed=false
+	kpanel_f2b_manager_set_version || { kpanel_f2b_manager_emit failed ""; return 1; }
+	current_version="$F2B_MANAGER_VERSION"
+	if [ "$current_version" != "$expected" ]; then
+		kpanel_f2b_manager_emit conflict "$current_version"
+		return 2
+	fi
+	[ "$F2B_MANAGER_ENABLED" = true ] || { kpanel_f2b_manager_error "SSH ジェイルが実行されていない"; kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+	bantime="$F2B_MANAGER_BANTIME"; findtime="$F2B_MANAGER_FINDTIME"; maxretry="$F2B_MANAGER_MAXRETRY"
+	trusted=("${F2B_MANAGER_TRUSTED[@]}")
+	case "$action" in
+		set-profile)
+			read -r bantime findtime maxretry <<< "$(kpanel_f2b_manager_profile_values "$value")" || return 2
+			[ "$F2B_MANAGER_PROFILE" = "$value" ] || changed=true
+			;;
+		add-trusted)
+			kpanel_f2b_manager_valid_address "$value" || return 2
+			for item in "${trusted[@]}"; do [ "$item" != "$value" ] || { kpanel_f2b_manager_snapshot unchanged; return 0; }; done
+			[ "${#trusted[@]}" -lt 64 ] || { kpanel_f2b_manager_error "信頼できるアドレスの最大数が 64 に達しました"; return 1; }
+			trusted+=("$value"); changed=true
+			;;
+		remove-trusted)
+			kpanel_f2b_manager_valid_address "$value" || return 2
+			local filtered=()
+			for item in "${trusted[@]}"; do [ "$item" = "$value" ] || filtered+=("$item"); done
+			[ "${#filtered[@]}" -ne "${#trusted[@]}" ] || { kpanel_f2b_manager_snapshot unchanged; return 0; }
+			trusted=("${filtered[@]}"); changed=true
+			;;
+		*) return 2 ;;
+	esac
+	[ "$changed" = true ] || { kpanel_f2b_manager_snapshot unchanged; return 0; }
+	snapshot="$(kpanel_system_resource_tempdir ssh-defense)" || { kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+	config_file="$(kpanel_f2b_manager_config_file)"
+	if [ -f "$config_file" ] && [ ! -L "$config_file" ]; then
+		printf '%s\n' true > "$snapshot/config.existed"
+		cp -a -- "$config_file" "$snapshot/config" || { rm -rf -- "$snapshot"; return 1; }
+	else
+		printf '%s\n' false > "$snapshot/config.existed"
+	fi
+	kpanel_f2b_manager_write_config "$F2B_MANAGER_JAIL" "$bantime" "$findtime" "$maxretry" "${trusted[@]}" ||
+		kpanel_f2b_manager_config_failure "$snapshot" "SSH 防御構成を書き込めません" || return 1
+	fail2ban-client -t >/dev/null 2>&1 || kpanel_f2b_manager_config_failure "$snapshot" "Fail2Ban 構成の検証に失敗しました" || return 1
+	fail2ban-client reload >/dev/null 2>&1 || kpanel_f2b_manager_config_failure "$snapshot" "Fail2Ban 構成のリロードに失敗しました" || return 1
+	kpanel_f2b_manager_collect || kpanel_f2b_manager_config_failure "$snapshot" "SSH 防御構成のリードバックに失敗しました" || return 1
+	[ "$F2B_MANAGER_BANTIME" = "$bantime" ] && [ "$F2B_MANAGER_FINDTIME" = "$findtime" ] && [ "$F2B_MANAGER_MAXRETRY" = "$maxretry" ] ||
+		kpanel_f2b_manager_config_failure "$snapshot" "SSH 防御ポリシーのリードバックに一貫性がありません" || return 1
+	case "$action" in
+		add-trusted)
+			for item in "${F2B_MANAGER_TRUSTED[@]}"; do [ "$item" != "$value" ] || changed=verified; done
+			[ "$changed" = verified ] || kpanel_f2b_manager_config_failure "$snapshot" "SSH 防御信頼アドレスのリードバックに一貫性がありません" || return 1
+			;;
+		remove-trusted)
+			for item in "${F2B_MANAGER_TRUSTED[@]}"; do
+				[ "$item" != "$value" ] || kpanel_f2b_manager_config_failure "$snapshot" "SSH 防御の信頼できるアドレスは引き続き有効です" || return 1
+			done
+			;;
+	esac
+	rm -rf -- "$snapshot"
+	kpanel_f2b_manager_snapshot applied
+}
+
+kpanel_f2b_manager_unban_action() {
+	local expected="$1" address="${2:-}" current_version item target changed=false
+	local targets=()
+	kpanel_f2b_manager_set_version || { kpanel_f2b_manager_emit failed ""; return 1; }
+	current_version="$F2B_MANAGER_VERSION"
+	[ "$current_version" = "$expected" ] || { kpanel_f2b_manager_emit conflict "$current_version"; return 2; }
+	[ "$F2B_MANAGER_ENABLED" = true ] || { kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+	if [ -n "$address" ]; then
+		kpanel_f2b_manager_valid_ip "$address" || return 2
+		for item in "${F2B_MANAGER_BANS[@]}"; do
+			[ "$item" = "$address" ] || continue
+			fail2ban-client set "$F2B_MANAGER_JAIL" unbanip --report-absent "$address" >/dev/null 2>&1 || {
+				kpanel_f2b_manager_emit needs-attention "$current_version"
+				return 1
+			}
+			targets+=("$address")
+			changed=true
+		done
+	else
+		for item in "${F2B_MANAGER_BANS[@]}"; do
+			fail2ban-client set "$F2B_MANAGER_JAIL" unbanip --report-absent "$item" >/dev/null 2>&1 || {
+				kpanel_f2b_manager_emit needs-attention "$current_version"
+				return 1
+			}
+			targets+=("$item")
+			changed=true
+		done
+	fi
+	if [ "$changed" = true ]; then
+		kpanel_f2b_manager_collect || { kpanel_f2b_manager_emit needs-attention "$current_version"; return 1; }
+		for target in "${targets[@]}"; do
+			for item in "${F2B_MANAGER_BANS[@]}"; do
+				[ "$item" != "$target" ] || {
+					kpanel_f2b_manager_error "SSH 禁止が解除された後の一貫性のないリードバック"
+					kpanel_f2b_manager_emit needs-attention "$current_version"
+					return 1
+				}
+			done
+		done
+	fi
+	kpanel_f2b_manager_snapshot "$([ "$changed" = true ] && printf applied || printf unchanged)"
+}
+
+kpanel_f2b_manager_service_action() {
+	local action="$1" current_version changed=false
+	root_use
+	current_version="$(kpanel_f2b_manager_current_version 2>/dev/null || true)"
+	case "$action" in
+		enable)
+			if kpanel_f2b_enabled && kpanel_f2b_autostart; then kpanel_f2b_manager_snapshot unchanged; return 0; fi
+			f2b_install_sshd >/dev/null || { kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+			kpanel_f2b_enabled || { kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+			changed=true
+			;;
+		disable)
+			if ! command -v fail2ban-client >/dev/null 2>&1; then kpanel_f2b_manager_snapshot unchanged; return 0; fi
+			if command -v apk >/dev/null 2>&1; then
+				service fail2ban stop >/dev/null 2>&1 || true
+				rc-update del fail2ban default >/dev/null 2>&1 || true
+			else
+				/bin/systemctl disable --now fail2ban.service >/dev/null 2>&1 || { kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+			fi
+			fail2ban-client ping >/dev/null 2>&1 && { kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+			changed=true
+			;;
+		uninstall)
+			if ! command -v fail2ban-client >/dev/null 2>&1; then kpanel_f2b_manager_snapshot unchanged; return 0; fi
+			remove fail2ban >/dev/null 2>&1 || { kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+			rm -rf -- "${KPANEL_F2B_TEST_ROOT:-}/etc/fail2ban" || { kpanel_f2b_manager_emit failed "$current_version"; return 1; }
+			changed=true
+			;;
+		*) return 2 ;;
+	esac
+	kpanel_f2b_manager_snapshot "$([ "$changed" = true ] && printf applied || printf unchanged)"
+}
+
+kpanel_f2b_manager_run_locked() (
+	local action="$1"
+	shift
+	case "$action" in
+		set-profile|add-trusted|remove-trusted) kpanel_f2b_manager_config_action "$action" "$@" ;;
+		unban) kpanel_f2b_manager_unban_action "$@" ;;
+		unban-all) kpanel_f2b_manager_unban_action "$1" ;;
+		enable|disable|uninstall) kpanel_f2b_manager_service_action "$action" ;;
+		*) return 2 ;;
+	esac
+)
+
+kpanel_f2b_manager_dispatch() {
+	local action="${1:-status}" expected value lock_file rc
+	shift || true
+	printf '%s\n' "KPANEL_F2B_MANAGER_PROTOCOL 1"
+	case "$action" in
+		status)
+			[ "$#" -eq 0 ] || return 2
+			kpanel_f2b_manager_snapshot ok
+			;;
+		set-profile)
+			[ "$#" -eq 2 ] && kpanel_system_resource_valid_version "$1" && kpanel_f2b_manager_profile_values "$2" >/dev/null || return 2
+			expected="$1"; value="$2"
+			;;
+		add-trusted|remove-trusted)
+			[ "$#" -eq 2 ] && kpanel_system_resource_valid_version "$1" && kpanel_f2b_manager_valid_address "$2" || return 2
+			expected="$1"; value="$2"
+			;;
+		unban)
+			[ "$#" -eq 2 ] && kpanel_system_resource_valid_version "$1" && kpanel_f2b_manager_valid_ip "$2" || return 2
+			expected="$1"; value="$2"
+			;;
+		unban-all)
+			[ "$#" -eq 1 ] && kpanel_system_resource_valid_version "$1" || return 2
+			expected="$1"
+			;;
+		enable|disable|uninstall)
+			[ "$#" -eq 0 ] || return 2
+			;;
+		*)
+			kpanel_f2b_manager_error "使用法: k f2b マネージャー <status|enable|disable|set-profile|unban|unban-all|add-trusted|remove-trusted|uninstall>"
+			return 2
+			;;
+	esac
+	[ "$action" = status ] && return 0
+	lock_file="$(kpanel_system_resource_prepare_lock_file)" || { kpanel_f2b_manager_emit failed ""; return 1; }
+	exec 9<>"$lock_file" || { kpanel_f2b_manager_emit failed ""; return 1; }
+	if ! flock -w 5 9; then kpanel_f2b_manager_emit conflict "$(kpanel_f2b_manager_current_version 2>/dev/null || true)"; return 2; fi
+	case "$action" in
+		set-profile|add-trusted|remove-trusted|unban) kpanel_f2b_manager_run_locked "$action" "$expected" "$value" ;;
+		unban-all) kpanel_f2b_manager_run_locked "$action" "$expected" ;;
+		*) kpanel_f2b_manager_run_locked "$action" ;;
+	esac
+}
+
+KPANEL_SYSTEM_TUNING_PROTOCOL_VERSION="1"
+KPANEL_SYSTEM_TUNING_MIRROR_COMMIT="649e948763042e485e411be540d21c32cface1c1"
+KPANEL_SYSTEM_TUNING_MIRROR_SHA256="2e3b78a460f10ef291f30e3cbf3d3b28a9521d6615364f11b36e4a70ec97d18d"
+KPANEL_SYSTEM_TUNING_NETWORK_COMMIT="e9c3078eb516b05f9df6d2a9294cf3b226ca02bd"
+KPANEL_SYSTEM_TUNING_NETWORK_SHA256="94f86598805b7a8155f444f35a446df4657985ef81b25f96f7799aa465033bbb"
+
+kpanel_system_tuning_error() { printf 'エラー: %s\n' "$1" >&2; }
+
+kpanel_system_tuning_valid_item() {
+	case "$1" in
+		system-update|system-cleanup|swap-1g|ssh-port-5522|ssh-defense|firewall-open-all|bbr|timezone-shanghai|dns-auto|ipv4-preferred|basic-tools|kernel-auto) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+kpanel_system_tuning_download_verified() {
+	local url="$1" expected="$2" output="$3" actual size
+	curl --fail --silent --show-error --location --max-time 120 --output "$output" "$url" || return 1
+	[ -f "$output" ] && [ ! -L "$output" ] || return 1
+	size="$(wc -c < "$output" | tr -d '[:space:]')"
+	[[ "$size" =~ ^[0-9]+$ ]] && [ "$size" -gt 0 ] && [ "$size" -le 1048576 ] || return 1
+	actual="$(sha256sum -- "$output" | awk '{print $1}')"
+	[ "$actual" = "$expected" ]
+}
+
+kpanel_system_tuning_switch_mirror() {
+	local script country url
+	script="$(mktemp /tmp/kejilion-system-tuning-mirror.XXXXXX)" || return 1
+	url="${gh_proxy}raw.githubusercontent.com/SuperManito/LinuxMirrors/${KPANEL_SYSTEM_TUNING_MIRROR_COMMIT}/ChangeMirrors.sh"
+	kpanel_system_tuning_download_verified "$url" "$KPANEL_SYSTEM_TUNING_MIRROR_SHA256" "$script" || { rm -f -- "$script"; return 1; }
+	country="$(curl --fail --silent --show-error --max-time 10 https://ipinfo.io/country 2>/dev/null | tr -d '\r\n' || true)"
+	if [ "$country" = CN ]; then
+		bash "$script" --source mirrors.huaweicloud.com --protocol https --use-intranet-source false --backup true --upgrade-software false --clean-cache false --ignore-backup-tips --install-epel false --pure-mode
+	elif grep -qi oracle /etc/os-release 2>/dev/null; then
+		bash "$script" --source mirrors.xtom.com --protocol https --use-intranet-source false --backup true --upgrade-software false --clean-cache false --ignore-backup-tips --install-epel false --pure-mode
+	else
+		bash "$script" --use-official-source true --protocol https --use-intranet-source false --backup true --upgrade-software false --clean-cache false --ignore-backup-tips --install-epel false --pure-mode
+	fi
+	local result=$?
+	rm -f -- "$script"
+	return "$result"
+}
+
+kpanel_system_tuning_kernel_auto() {
+	local script url
+	mkdir -p /etc/sysctl.d /etc/modules-load.d || {
+		kpanel_system_tuning_error "カーネルパラメータ設定ディレクトリを作成できません"
+		return 1
+	}
+	script="$(mktemp /tmp/kejilion-system-tuning-network.XXXXXX)" || return 1
+	url="${gh_proxy}raw.githubusercontent.com/kejilion/sh/${KPANEL_SYSTEM_TUNING_NETWORK_COMMIT}/network-optimize.sh"
+	kpanel_system_tuning_download_verified "$url" "$KPANEL_SYSTEM_TUNING_NETWORK_SHA256" "$script" || { rm -f -- "$script"; return 1; }
+	bash "$script"
+	local result=$?
+	rm -f -- "$script"
+	return "$result"
+}
+
+kpanel_system_tuning_firewall_open_all() {
+	local version
+	if ! command -v iptables >/dev/null 2>&1 ||
+		! command -v iptables-save >/dev/null 2>&1 ||
+		! command -v iptables-restore >/dev/null 2>&1; then
+		install iptables || {
+			kpanel_system_tuning_error "iptables 互換ツールのインストールに失敗しました"
+			return 1
+		}
+	fi
+	check_crontab_installed || {
+		kpanel_system_tuning_error "iptables 永続性依存関係 crontab/crond は使用できません"
+		return 1
+	}
+	version="$(kpanel_system_resource_firewall_version)" || return 1
+	kpanel_system_resource_firewall_action open-all "$version" >&2
+}
+
+kpanel_system_tuning_swap_1g_ready() {
+	local swapfile="${1:-/swapfile}" swaps="${2:-/proc/swaps}" fstab="${3:-/etc/fstab}" size
+	[ -f "$swapfile" ] && [ ! -L "$swapfile" ] || return 1
+	size="$(stat -c '%s' -- "$swapfile" 2>/dev/null)"
+	[ "$size" = 1073741824 ] || return 1
+	awk -v path="$swapfile" 'NR > 1 && $1 == path { found=1 } END { exit !found }' "$swaps" 2>/dev/null || return 1
+	awk -v path="$swapfile" '$1 == path && $2 == "swap" { found=1 } END { exit !found }' "$fstab" 2>/dev/null
+}
+
+kpanel_system_tuning_dns_auto() {
+	local country dns1_ipv4 dns2_ipv4 dns1_ipv6 dns2_ipv6
+	local dns=()
+	if ! command -v chattr >/dev/null 2>&1; then
+		install e2fsprogs || {
+			kpanel_system_tuning_error "DNS 依存関係 e2fsprogs/chattr のインストールに失敗しました"
+			return 1
+		}
+	fi
+	country="$(curl --fail --silent --show-error --max-time 10 https://ipinfo.io/country 2>/dev/null | tr -d '\r\n' || true)"
+	if [ "$country" = CN ]; then
+		dns1_ipv4="223.5.5.5"
+		dns2_ipv4="183.60.83.19"
+		dns1_ipv6="2400:3200::1"
+		dns2_ipv6="2400:da00::6666"
+	else
+		dns1_ipv4="1.1.1.1"
+		dns2_ipv4="8.8.8.8"
+		dns1_ipv6="2606:4700:4700::1111"
+		dns2_ipv6="2001:4860:4860::8888"
+	fi
+	ip_address
+	[ -n "$ipv4_address" ] && dns+=("$dns1_ipv4" "$dns2_ipv4")
+	[ -n "$ipv6_address" ] && dns+=("$dns1_ipv6" "$dns2_ipv6")
+	[ "${#dns[@]}" -gt 0 ] || dns=("$dns1_ipv4" "$dns2_ipv4")
+	KJ_DNS_NONINTERACTIVE=1 kpanel_set_dns_noninteractive "${dns[@]}"
+}
+
+kpanel_system_tuning_has_package_manager() {
+	local mode="$1" command_name
+	local commands=(dnf yum apt apk pacman zypper opkg)
+	[ "$mode" = cleanup ] && commands+=(pkg)
+	for command_name in "${commands[@]}"; do
+		command -v "$command_name" >/dev/null 2>&1 && return 0
+	done
+	return 1
+}
+
+kpanel_system_tuning_ssh_server_ready() {
+	local config="${KPANEL_SYSTEM_TUNING_SSHD_CONFIG:-/etc/ssh/sshd_config}"
+	[ -f "$config" ] && [ ! -L "$config" ] &&
+		command -v sshd >/dev/null 2>&1 && command -v ss >/dev/null 2>&1
+}
+
+kpanel_system_tuning_prepare_ssh_service() {
+	local run_dir="${KPANEL_SYSTEM_TUNING_SSHD_RUN_DIR:-/run/sshd}"
+	local systemd_dir="${KPANEL_SYSTEM_TUNING_SYSTEMD_DIR:-/run/systemd/system}"
+	local alias_path="${KPANEL_SYSTEM_TUNING_SSHD_UNIT_ALIAS:-/etc/systemd/system/sshd.service}"
+	local fragment systemctl_bin
+	mkdir -p -- "$run_dir" && chmod 0755 "$run_dir" || return 1
+	systemctl_bin="$(type -P systemctl 2>/dev/null || true)"
+	if [ -n "$systemctl_bin" ] && [ -d "$systemd_dir" ]; then
+		if "$systemctl_bin" cat ssh.service >/dev/null 2>&1; then
+			if ! "$systemctl_bin" cat sshd.service >/dev/null 2>&1; then
+				fragment="$("$systemctl_bin" show -p FragmentPath --value ssh.service 2>/dev/null)"
+				case "$fragment" in /lib/systemd/system/*|/usr/lib/systemd/system/*) ;; *) return 1 ;; esac
+				ln -sfn -- "$fragment" "$alias_path" || return 1
+				"$systemctl_bin" daemon-reload || return 1
+			fi
+			if "$systemctl_bin" cat ssh.socket >/dev/null 2>&1; then
+				"$systemctl_bin" disable ssh.socket >/dev/null 2>&1 || return 1
+				"$systemctl_bin" stop ssh.socket >/dev/null 2>&1 || return 1
+				if ! "$systemctl_bin" enable --now ssh.service >/dev/null 2>&1; then
+					"$systemctl_bin" enable --now ssh.socket >/dev/null 2>&1 || true
+					return 1
+				fi
+			else
+				"$systemctl_bin" enable --now ssh.service >/dev/null 2>&1 || return 1
+			fi
+		else
+			"$systemctl_bin" enable --now sshd.service >/dev/null 2>&1 || return 1
+		fi
+	elif command -v rc-service >/dev/null 2>&1; then
+		rc-service sshd start >/dev/null 2>&1 || return 1
+	fi
+}
+
+kpanel_system_tuning_ensure_ssh_server() {
+	local package_name
+	if ! kpanel_system_tuning_ssh_server_ready; then
+		if command -v apt >/dev/null 2>&1 || command -v dnf >/dev/null 2>&1 ||
+			command -v yum >/dev/null 2>&1 || command -v zypper >/dev/null 2>&1 ||
+			command -v opkg >/dev/null 2>&1; then
+			package_name=openssh-server
+		elif command -v apk >/dev/null 2>&1 || command -v pacman >/dev/null 2>&1; then
+			package_name=openssh
+		else
+			kpanel_system_tuning_error "現在のシステムにはサポートされている OpenSSH サーバー インストール アダプターがありません"
+			return 1
+		fi
+		install "$package_name" || {
+			kpanel_system_tuning_error "OpenSSH サーバーのインストールに失敗しました"
+			return 1
+		}
+	fi
+	kpanel_system_tuning_ssh_server_ready || {
+		kpanel_system_tuning_error "インストール後も OpenSSH サーバーの構成またはツールを使用できない"
+		return 1
+	}
+	kpanel_system_tuning_prepare_ssh_service || {
+		kpanel_system_tuning_error "OpenSSH サーバーのオペレーティング環境の準備に失敗しました"
+		return 1
+	}
+}
+
+kpanel_system_tuning_item_ready() {
+	local item="$1" command_name
+	case "$item" in
+		swap-1g) kpanel_system_tuning_swap_1g_ready ;;
+		ssh-port-5522) sshd -T 2>/dev/null | grep -Eq '^port 5522$' ;;
+		ssh-defense) kpanel_f2b_enabled >/dev/null 2>&1 ;;
+		firewall-open-all) iptables-save 2>/dev/null | awk '$0=="*filter"{f=1;next} f&&$0=="COMMIT"{exit} f&&/^:INPUT /{i=$2} f&&/^:FORWARD /{w=$2} END{exit !(i=="ACCEPT"&&w=="ACCEPT")}' ;;
+		bbr) [ "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)" = bbr ] && [ "$(sysctl -n net.core.default_qdisc 2>/dev/null)" = fq ] ;;
+		timezone-shanghai) [ "$(timedatectl show -p Timezone --value 2>/dev/null)" = Asia/Shanghai ] ;;
+		ipv4-preferred) grep -Eq '^precedence[[:space:]]+::ffff:0:0/96[[:space:]]+100([[:space:]]|$)' /etc/gai.conf 2>/dev/null ;;
+		basic-tools) for command_name in docker wget sudo tar unzip socat btop nano vim; do command -v "$command_name" >/dev/null 2>&1 || return 1; done ;;
+		kernel-auto) [ -s /etc/sysctl.d/99-network-optimize.conf ] || { [ -s /etc/sysctl.conf ] && grep -q 'net.core.default_qdisc' /etc/sysctl.conf 2>/dev/null; } ;;
+		*) return 1 ;;
+	esac
+}
+
+kpanel_system_tuning_collect() {
+	local canonical item state
+	TUNING_ITEMS=()
+	for item in system-update system-cleanup swap-1g ssh-port-5522 ssh-defense firewall-open-all bbr timezone-shanghai dns-auto ipv4-preferred basic-tools kernel-auto; do
+		state=pending
+		kpanel_system_tuning_item_ready "$item" && state=ready
+		TUNING_ITEMS+=("$item:$state")
+	done
+	canonical="$(mktemp /tmp/kejilion-system-tuning-version.XXXXXX)" || return 1
+	printf '%s\n' "${TUNING_ITEMS[@]}" > "$canonical"
+	TUNING_VERSION="$(sha256sum -- "$canonical" 2>/dev/null | awk '{print $1}')"
+	rm -f -- "$canonical"
+	[[ "$TUNING_VERSION" =~ ^[0-9a-f]{64}$ ]]
+}
+
+kpanel_system_tuning_emit() {
+	local status="$1" selected="${2:-}" item
+	kpanel_system_tuning_collect || { TUNING_VERSION="$(kpanel_system_resource_zero_version)"; TUNING_ITEMS=(); }
+	printf 'KPANEL_SYSTEM_TUNING_STATUS=%s\n' "$status"
+	printf 'KPANEL_SYSTEM_TUNING_VERSION=%s\n' "$TUNING_VERSION"
+	[ -z "$selected" ] || printf 'KPANEL_SYSTEM_TUNING_SELECTED=%s\n' "$selected"
+	for item in "${TUNING_ITEMS[@]}"; do printf 'KPANEL_SYSTEM_TUNING_ITEM=%s\n' "$item"; done
+}
+
+kpanel_system_tuning_run_item() {
+	case "$1" in
+		system-update)
+			kpanel_system_tuning_has_package_manager update || { kpanel_system_tuning_error "現在のシステムではサポートされているパッケージ マネージャーがありません"; return 1; }
+			kpanel_system_tuning_switch_mirror || { kpanel_system_tuning_error "システムアップデートソースの最適化に失敗しました"; return 1; }
+			linux_update || { kpanel_system_tuning_error "システムパッケージの更新に失敗しました"; return 1; }
+			;;
+		system-cleanup)
+			kpanel_system_tuning_has_package_manager cleanup || { kpanel_system_tuning_error "現在のシステムにはサポートされているクリーンアップ アダプターがありません"; return 1; }
+			linux_clean || { kpanel_system_tuning_error "システムのクリーンアップに失敗しました"; return 1; }
+			;;
+		swap-1g) add_swap 1024 ;;
+		ssh-port-5522) kpanel_system_tuning_ensure_ssh_server && KJ_SSH_PORT_NONINTERACTIVE=1 kpanel_ssh_port_noninteractive 5522 ;;
+		ssh-defense) kpanel_f2b_manager_service_action enable && kpanel_f2b_enabled ;;
+		firewall-open-all) kpanel_system_tuning_firewall_open_all ;;
+		bbr) bbr_on ;;
+		timezone-shanghai) set_timedate Asia/Shanghai ;;
+		dns-auto) kpanel_system_tuning_dns_auto ;;
+		ipv4-preferred) prefer_ipv4 ;;
+		basic-tools) install_docker && install wget sudo tar unzip socat btop nano vim ;;
+		kernel-auto) kpanel_system_tuning_kernel_auto ;;
+		*) return 2 ;;
+	esac
+}
+
+kpanel_system_tuning_menu_item() {
+	local item="$1" index="$2" label="$3"
+	echo "------------------------------------------------"
+	if ! kpanel_system_tuning_run_item "$item"; then
+		echo -e "[${gl_hong}FAIL${gl_bai}] ${index}/12. ${label}、ワンストップチューニングは停止しました"
+		return 1
+	fi
+	case "$item" in system-update|system-cleanup|dns-auto) ;; *)
+		if ! kpanel_system_tuning_item_ready "$item"; then
+			echo -e "[${gl_hong}FAIL${gl_bai}] ${index}/12. ${label}、完了ステータスのリードバックに失敗しました、ワンストップチューニングが停止しました"
+			return 1
+		fi
+	;; esac
+	echo -e "[${gl_lv}OK${gl_bai}] ${index}/12. ${label}"
+}
+
+kpanel_system_tuning_apply_item() {
+	local item="$1" status=applied
+	if kpanel_system_tuning_item_ready "$item"; then
+		status=unchanged
+	elif ! kpanel_system_tuning_run_item "$item" >&2; then
+		kpanel_system_tuning_emit needs-attention "$item"
+		return 1
+	fi
+	case "$item" in system-update|system-cleanup|dns-auto) ;; *)
+		kpanel_system_tuning_item_ready "$item" || { kpanel_system_tuning_emit needs-attention "$item"; return 1; }
+	;; esac
+	kpanel_system_tuning_emit "$status" "$item"
+}
+
+kpanel_system_tuning_dispatch() {
+	local action="${1:-status}" item lock_file
+	shift || true
+	printf '%s\n' "KPANEL_SYSTEM_TUNING_PROTOCOL 1"
+	[ "${KJ_SYSTEM_TUNING_NONINTERACTIVE:-}" = 1 ] || { kpanel_system_tuning_error "KPanel システムチューニングプロトコル環境が有効になっていません"; return 2; }
+	[ "$EUID" -eq 0 ] || { kpanel_system_tuning_error "KPanel システム調整プロトコルは root として実行する必要があります"; return 1; }
+	[ "$(uname -s)" = Linux ] || { kpanel_system_tuning_error "KPanel システムチューニングプロトコルは Linux のみをサポートします"; return 1; }
+	case "$action" in
+		status) [ "$#" -eq 0 ] || return 2; kpanel_system_tuning_emit ok; return $? ;;
+		apply-item) [ "$#" -eq 1 ] && kpanel_system_tuning_valid_item "$1" || return 2; item="$1" ;;
+		*) kpanel_system_tuning_error "使用法: k kpanel system-tuning <status|apply-item item>"; return 2 ;;
+	esac
+	lock_file="$(kpanel_system_resource_prepare_lock_file)" || { kpanel_system_tuning_emit failed "$item"; return 1; }
+	exec 9<>"$lock_file" || { kpanel_system_tuning_emit failed "$item"; return 1; }
+	if ! flock -w 5 9; then kpanel_system_tuning_emit conflict "$item"; return 2; fi
+	kpanel_system_tuning_apply_item "$item"
+}
+
 f2b_sshd() {
 	if grep -q 'Alpine' /etc/issue; then
 		xxx=alpine-sshd
@@ -3860,7 +4650,7 @@ f2b_sshd() {
 	fi
 }
 
-# 基础参数配置：封禁时长(bantime)、时间窗口(findtime)、重试次数(maxretry)
+# 基本パラメータ設定: 禁止期間 (bantime)、時間枠 (findtime)、再試行回数 (maxretry)
 # 例証します:
 # - /etc/fail2ban/jail.d/sshd.local への書き込みを優先します (デフォルトのjail設定を上書きし、アップグレード時に失われにくくなります)
 # - Alpine で、jail 名が異なる場合でも、sshd.local と書き込みます。 Fail2Ban は、jail 名に従って一致します。
@@ -3931,7 +4721,7 @@ f2b_edit_config() {
 	[ -f "$cfg" ] || printf "[sshd]\n# bantime/findtime/maxretry\n" > "$cfg"
 
 	nano "$cfg"
-	echo -e "${gl_lv}已保存${gl_bai}、fail2ban をリロード中..."
+	echo -e "${gl_lv}保存されました${gl_bai}、fail2ban をリロード中..."
 	fail2ban-client reload >/dev/null 2>&1 || true
 }
 
@@ -4019,7 +4809,7 @@ cd ~
 send_stats "nginx環境をインストールする"
 root_use
 clear
-echo -e "${gl_huang}nginx未安装，开始安装nginx环境...${gl_bai}"
+echo -e "${gl_huang}nginx がインストールされていません。nginx 環境のインストールを開始してください...${gl_bai}"
 install_dependency
 install_docker
 install_certbot
@@ -4074,7 +4864,7 @@ nginx_web_on() {
 	local ipv4_pattern='^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'
 	local ipv6_pattern='^(([0-9A-Fa-f]{1,4}:){1,7}:|([0-9A-Fa-f]{1,4}:){7,7}[0-9A-Fa-f]{1,4}|::1)$'
 
-	echo "あなたの$webname 搭建好了！"
+	echo "あなたの$webname建てられました！"
 
 	if [[ "$yuming" =~ $ipv4_pattern || "$yuming" =~ $ipv6_pattern ]]; then
 		mv /home/web/conf.d/"$yuming".conf /home/web/conf.d/"${yuming}_${access_port}".conf
@@ -4093,7 +4883,7 @@ ldnmp_wp() {
   # wordpress
   webname="WordPress"
   yuming="${1:-}"
-  kpanel_web_progress 10 "正在校验 WordPress 域名与现有站点"
+  kpanel_web_progress 10 "WordPress ドメイン名を既存のサイトで検証する"
   send_stats "インストール$webname"
   echo "導入を開始する$webname"
   if [ -z "$yuming" ]; then
@@ -4152,7 +4942,7 @@ ldnmp_Proxy() {
 
 	kpanel_web_progress 10 "リバース プロキシ ドメイン名とアップストリーム アドレスの確認"
 	send_stats "インストール$webname"
-	echo "开始部署 $webname"
+	echo "導入を開始する$webname"
 	if [ -z "$yuming" ]; then
 		add_yuming
 	fi
@@ -4322,7 +5112,7 @@ stream_panel() {
 		echo "------------------------"
 		echo "0. 前のメニューに戻る"
 		echo "------------------------"
-		read -e -p "输入你的选择: " choice
+		read -e -p "選択内容を入力してください:" choice
 		case $choice in
 			1)
 				nginx_install_status
@@ -4340,7 +5130,7 @@ stream_panel() {
 				if [[ "$confirm" =~ ^[Yy]$ ]]; then
 					docker rm -f nginx
 					sed -i "/\b${app_id}\b/d" /home/docker/appno.txt
-					send_stats "更新Stream四层代理"
+					send_stats "ストリームの 4 層プロキシを更新します"
 					echo "nginxコンテナは削除されました。"
 				else
 					echo "操作はキャンセルされました。"
@@ -4351,7 +5141,7 @@ stream_panel() {
 			4)
 				ldnmp_Proxy_backend_stream
 				add_app_id
-				send_stats "添加四层代理"
+				send_stats "レイヤー 4 プロキシを追加する"
 				;;
 			5)
 				send_stats "転送設定の編集"
@@ -4363,7 +5153,7 @@ stream_panel() {
 				;;
 			6)
 				send_stats "転送設定の削除"
-				read -e -p "请输入你要删除的服务名: " stream_name
+				read -e -p "削除するサービス名を入力してください:" stream_name
 				rm /home/web/stream.d/$stream_name.conf > /dev/null 2>&1
 				docker restart nginx
 				send_stats "レイヤ 4 プロキシを削除する"
@@ -4388,7 +5178,7 @@ ldnmp_Proxy_backend_stream() {
 	# エージェント名を取得する
 	read -erp "プロキシ転送名を入力してください (例: mysql_proxy):" proxy_name
 	if [ -z "$proxy_name" ]; then
-		echo "名称不能为空"; return 1
+		echo "名前を空にすることはできません"; return 1
 	fi
 
 	# リスニングポートの取得
@@ -4506,7 +5296,7 @@ ldnmp_web_status() {
 
 		echo "------------------------"
 		echo ""
-		echo -e "数据库: ${db_output}"
+		echo -e "データベース:${db_output}"
 		echo -e "------------------------"
 		local dbrootpasswd=$(grep -oP 'MYSQL_ROOT_PASSWORD:\s*\K.*' /home/web/docker-compose.yml | tr -d '[:space:]')
 		docker exec mysql mysql -u root -p"$dbrootpasswd" -e "SHOW DATABASES;" 2> /dev/null | grep -Ev "Database|information_schema|mysql|performance_schema|sys"
@@ -4521,7 +5311,7 @@ ldnmp_web_status() {
 		echo "操作する"
 		echo "------------------------"
 		echo "1. ドメイン名証明書の適用/更新 2. サイトのドメイン名の複製"
-		echo "3.  清理站点缓存                    4.  创建关联站点"
+		echo "3. サイトのキャッシュをクリアします。 4. 関連するサイトを作成します。"
 		echo "5. アクセスログの表示 6. エラーログの表示"
 		echo "7. グローバル構成の編集 8. サイト構成の編集"
 		echo "9. サイトデータベースの管理 10. サイト分析レポートの表示"
@@ -4618,7 +5408,7 @@ ldnmp_web_status() {
 
 			8)
 				send_stats "サイト構成を編集する"
-				read -e -p "サイト構成を編集するには、編集するドメイン名を入力してください:" yuming
+				read -e -p "サイト設定を編集するには、編集するドメイン名を入力してください:" yuming
 				install nano
 				nano /home/web/conf.d/$yuming.conf
 				docker exec nginx nginx -s reload
@@ -4628,7 +5418,7 @@ ldnmp_web_status() {
 				break_end
 				;;
 			10)
-				send_stats "查看站点数据"
+				send_stats "サイトデータの表示"
 				install goaccess
 				goaccess --log-format=COMBINED /home/web/log/nginx/access.log
 				;;
@@ -5070,7 +5860,7 @@ frps_panel() {
 
 			8)
 				send_stats "IPアクセスをブロックする"
-				echo "ドメイン名アクセスを逆にしている場合は、この機能を使用して IP+ポート アクセスをブロックすることができ、より安全になります。"
+				echo "ドメイン名アクセスを反転している場合は、この機能を使用して IP+ポート アクセスをブロックすることができ、より安全です。"
 				read -e -p "ブロックするポートを入力してください:" frps_port
 				block_host_port "$frps_port" "$ipv4_address"
 				;;
@@ -5262,7 +6052,7 @@ yt_menu_pro() {
 				read -e -p "バッチダウンロードが完了しました。続行するには任意のキーを押してください..." ;;
 			7)
 				send_stats "カスタムビデオのダウンロード"
-				read -e -p "完全な yt-dlp パラメータを入力してください (yt-dlp を除く)。" custom
+				read -e -p "完全な yt-dlp パラメータを入力してください (yt-dlp を除く):" custom
 				yt-dlp -P "$VIDEO_DIR" $custom \
 					--write-subs --sub-langs all \
 					--write-thumbnail --embed-thumbnail \
@@ -5434,7 +6224,7 @@ linux_clean() {
 
 bbr_on() {
 
-# カーネル チューニング モジュールとの競合を防ぐための sysctl.d への書き込みを統合しました。
+# カーネルチューニングモジュールとの競合を防ぐためのsysctl.dへの書き込みを統合
 local CONF="/etc/sysctl.d/99-kejilion-bbr.conf"
 mkdir -p /etc/sysctl.d
 echo "net.core.default_qdisc=fq" > "$CONF"
@@ -5493,6 +6283,59 @@ kpanel_dns_is_ipv6() {
 	[[ "$value" =~ ^[0-9A-Fa-f:.]+$ ]]
 }
 
+kpanel_dns_wsl_environment() {
+	grep -qiE '(microsoft|wsl)' /proc/sys/kernel/osrelease 2>/dev/null ||
+		uname -r 2>/dev/null | grep -qiE '(microsoft|wsl)'
+}
+
+kpanel_dns_wsl_persist_resolver() {
+	local expected="$1" config="/etc/wsl.conf" state_dir="/etc/kpanel"
+	local state_file="/etc/kpanel/resolv.conf" unit="/etc/systemd/system/kpanel-wsl-resolvconf.service"
+	local desired
+
+	desired="$(mktemp /etc/.wsl.conf.kpanel.XXXXXX)" || return 1
+	if [ -f "$config" ]; then
+		awk '
+			BEGIN { in_network=0; inserted=0 }
+			/^\[network\][[:space:]]*$/ {
+				in_network=1; print
+				if (!inserted) { print "generateResolvConf = false"; inserted=1 }
+				next
+			}
+			/^\[/ { in_network=0; print; next }
+			in_network && /^[[:space:]]*generateResolvConf[[:space:]]*=/ { next }
+			{ print }
+			END { if (!inserted) print "\n[network]\ngenerateResolvConf = false" }
+		' "$config" > "$desired" || { rm -f "$desired"; return 1; }
+	else
+		printf '[network]\ngenerateResolvConf = false\n' > "$desired" || { rm -f "$desired"; return 1; }
+	fi
+	grep -q '^\[boot\][[:space:]]*$' "$desired" ||
+		printf '\n[boot]\nsystemd = true\n' >> "$desired" || { rm -f "$desired"; return 1; }
+	chmod 644 "$desired" && mv -f "$desired" "$config" || { rm -f "$desired"; return 1; }
+	mkdir -p "$state_dir" || return 1
+	printf '%s' "$expected" > "$state_file" || return 1
+	chmod 644 "$state_file" || return 1
+	printf '%s\n' \
+		'[Unit]' \
+		'Description=Restore KPanel managed WSL DNS' \
+		'After=local-fs.target' \
+		'Before=network-pre.target' \
+		'' \
+		'[Service]' \
+		'Type=oneshot' \
+		'ExecStart=/usr/bin/cp -f /etc/kpanel/resolv.conf /etc/resolv.conf' \
+		'' \
+		'[Install]' \
+		'WantedBy=multi-user.target' > "$unit" || return 1
+	chmod 644 "$unit" || return 1
+	mkdir -p /etc/systemd/system/multi-user.target.wants || return 1
+	ln -sfn "$unit" /etc/systemd/system/multi-user.target.wants/kpanel-wsl-resolvconf.service || return 1
+	if systemctl daemon-reload >/dev/null 2>&1; then
+		systemctl enable --now kpanel-wsl-resolvconf.service >/dev/null 2>&1 || return 1
+	fi
+}
+
 kpanel_dns_restore_file() {
 	local target="$1"
 	local backup="$2"
@@ -5512,7 +6355,7 @@ kpanel_dns_restore_file() {
 
 kpanel_dns_write_static() {
 	local target="/etc/resolv.conf"
-	local parent desired backup old_mode old_immutable="false" existed="false"
+	local parent desired backup old_mode old_immutable="false" existed="false" lock_dns="true"
 	local expected="" value
 
 	if [ -L "$target" ]; then
@@ -5527,10 +6370,14 @@ kpanel_dns_write_static() {
 		echo "エラー: DNS 構成ディレクトリが存在しません"
 		return 1
 	}
-	command -v chattr >/dev/null 2>&1 || {
-		echo "エラー: chattr が利用できないため、kejilion.sh DNS ライフサイクル セマンティクスを維持できません"
-		return 1
-	}
+	kpanel_dns_wsl_environment && lock_dns="false"
+	if [ "$lock_dns" = "true" ] && ! command -v chattr >/dev/null 2>&1; then
+		kpanel_dns_wsl_environment || {
+			echo "エラー: chattr が利用できないため、kejilion.sh DNS ライフサイクル セマンティクスを維持できません"
+			return 1
+		}
+		lock_dns="false"
+	fi
 
 	desired="$(mktemp "${parent}/.resolv.conf.kpanel.XXXXXX")" || return 1
 	backup="$(mktemp "${parent}/.resolv.conf.backup.XXXXXX")" || {
@@ -5540,6 +6387,11 @@ kpanel_dns_write_static() {
 	for value in "$@"; do
 		expected="${expected}nameserver ${value}"$'\n'
 	done
+	if [ "$lock_dns" = "false" ] && ! kpanel_dns_wsl_persist_resolver "$expected"; then
+		rm -f "$desired" "$backup"
+		echo "エラー: WSL DNS 永続性の構成に失敗しました"
+		return 1
+	fi
 	printf '%s' "$expected" > "$desired" || {
 		rm -f "$desired" "$backup"
 		return 1
@@ -5557,25 +6409,33 @@ kpanel_dns_write_static() {
 			return 1
 		}
 		chown --reference="$target" "$desired" >/dev/null 2>&1 || true
-		if lsattr -d "$target" 2>/dev/null | awk '{print $1}' | grep -q 'i'; then
+		if [ "$lock_dns" = "true" ] && lsattr -d "$target" 2>/dev/null | awk '{print $1}' | grep -q 'i'; then
 			old_immutable="true"
 		fi
 		if [ "$(cat "$target")"$'\n' = "$expected" ]; then
-			chattr +i "$target" >/dev/null 2>&1 || {
-				rm -f "$desired" "$backup"
-				echo "エラー: DNS 構成をロックできません"
-				return 1
-			}
+			if [ "$lock_dns" = "true" ] && ! chattr +i "$target" >/dev/null 2>&1; then
+				if kpanel_dns_wsl_environment; then
+					lock_dns="false"
+				else
+					rm -f "$desired" "$backup"
+					echo "エラー: DNS 構成をロックできません"
+					return 1
+				fi
+			fi
 			rm -f "$desired" "$backup"
 			echo "KPANEL_DNS_MANAGER resolv.conf"
 			echo "KPANEL_DNS_RESULT unchanged"
 			return 0
 		fi
-		chattr -i "$target" >/dev/null 2>&1 || {
-			rm -f "$desired" "$backup"
-			echo "エラー: 既存の DNS 構成のロックを解除できません"
-			return 1
-		}
+		if [ "$lock_dns" = "true" ] && ! chattr -i "$target" >/dev/null 2>&1; then
+			if kpanel_dns_wsl_environment; then
+				lock_dns="false"
+			else
+				rm -f "$desired" "$backup"
+				echo "エラー: 既存の DNS 構成のロックを解除できません"
+				return 1
+			fi
+		fi
 	else
 		chmod 644 "$desired" || {
 			rm -f "$desired" "$backup"
@@ -5583,12 +6443,34 @@ kpanel_dns_write_static() {
 		}
 	fi
 
-	if ! mv -f "$desired" "$target" ||
-		! chattr +i "$target" >/dev/null 2>&1 ||
-		[ "$(cat "$target")"$'\n' != "$expected" ]; then
+	if ! mv -f "$desired" "$target"; then
 		kpanel_dns_restore_file "$target" "$backup" "$existed" "$old_immutable" || {
 			rm -f "$desired" "$backup"
-			echo "エラー: DNS 書き込みに失敗し、ロールバックに失敗しました。手動検査が必要です"
+			echo "エラー: DNS 書き込みに失敗し、ロールバックに失敗しました。手動チェックが必要です"
+			return 1
+		}
+		rm -f "$desired" "$backup"
+		echo "エラー: DNS 書き込みまたはリードバック検証が失敗しました。元の構成が復元されました"
+		return 1
+	fi
+	if [ "$lock_dns" = "true" ] && ! chattr +i "$target" >/dev/null 2>&1; then
+		if kpanel_dns_wsl_environment; then
+			lock_dns="false"
+		else
+			kpanel_dns_restore_file "$target" "$backup" "$existed" "$old_immutable" || {
+				rm -f "$desired" "$backup"
+				echo "エラー: DNS 書き込みに失敗し、ロールバックに失敗しました。手動チェックが必要です"
+				return 1
+			}
+			rm -f "$desired" "$backup"
+			echo "エラー: DNS 書き込みまたはリードバック検証が失敗しました。元の構成が復元されました"
+			return 1
+		fi
+	fi
+	if [ "$(cat "$target")"$'\n' != "$expected" ]; then
+		kpanel_dns_restore_file "$target" "$backup" "$existed" "$old_immutable" || {
+			rm -f "$desired" "$backup"
+			echo "エラー: DNS 書き込みに失敗し、ロールバックに失敗しました。手動チェックが必要です"
 			return 1
 		}
 		rm -f "$desired" "$backup"
@@ -5733,7 +6615,7 @@ while true; do
 	echo "2.国内DNSの最適化:"
 	echo " v4: 223.5.5.5 183.60.83.19"
 	echo " v6: 2400:3200::1 2400:da00::6666"
-	echo "3. DNS 設定を手動で編集する"
+	echo "3. DNS 構成を手動で編集する"
 	echo "------------------------"
 	echo "0. 前のメニューに戻る"
 	echo "------------------------"
@@ -5810,8 +6692,8 @@ new_ssh_port() {
 
   correct_ssh_config
 
-  restart_ssh
-  open_port $new_port
+  restart_ssh || return 1
+  open_port "$new_port" || return 1
   remove iptables-persistent ufw firewalld iptables-services > /dev/null 2>&1
 
   echo "SSH ポートは次のように変更されました。$new_port"
@@ -6122,7 +7004,7 @@ sshkey_panel() {
 			break_end
 			  ;;
 		  2)
-			send_stats "导入已有公钥"
+			send_stats "既存の公開キーをインポートする"
 			import_sshkey
 			break_end
 			  ;;
@@ -6151,7 +7033,7 @@ sshkey_panel() {
 			echo "公開鍵情報"
 			cat ${HOME}/.ssh/authorized_keys
 			echo "------------------------"
-			echo "私钥信息"
+			echo "秘密鍵情報"
 			cat ${HOME}/.ssh/sshkey
 			echo "------------------------"
 			break_end
@@ -6281,7 +7163,7 @@ dd_xitong() {
 			root_use
 			echo "システムを再インストールする"
 			echo "--------------------------------"
-			echo -e "${gl_hong}知らせ：${gl_bai}重装有风险失联，不放心者慎用。重装预计花费15分钟，请提前备份数据。"
+			echo -e "${gl_hong}知らせ：${gl_bai}再インストールすると接続が切れる可能性がありますので、不安な方はご注意ください。再インストールには 15 分程度かかることが予想されますので、事前にデータをバックアップしてください。"
 			echo -e "${gl_hui}スクリプトをサポートしてくれたボス bin456789 とボス leitbogioro に感謝します。${gl_bai} "
 			echo -e "${gl_hui}bin456789 プロジェクトのアドレス:${gh_https_url}github.com/bin456789/reinstall${gl_bai}"
 			echo -e "${gl_hui}leitbogioro プロジェクトのアドレス:${gh_https_url}github.com/leitbogioro/Tools${gl_bai}"
@@ -6309,12 +7191,12 @@ dd_xitong() {
 			echo "------------------------"
 			echo "0. 前のメニューに戻る"
 			echo "------------------------"
-			read -e -p "请选择要重装的系统: " sys_choice
+			read -e -p "再インストールするシステムを選択してください:" sys_choice
 			case "$sys_choice" in
 
 
 			  1)
-				send_stats "重装debian 13"
+				send_stats "debian13を再インストールする"
 				dd_xitong_3
 				bash reinstall.sh debian 13
 				reboot
@@ -6336,7 +7218,7 @@ dd_xitong() {
 				exit
 				;;
 			  4)
-				send_stats "重装debian 10"
+				send_stats "debian10を再インストールする"
 				dd_xitong_3
 				bash reinstall.sh debian 10
 				reboot
@@ -6444,7 +7326,7 @@ dd_xitong() {
 				;;
 
 			  30)
-				send_stats "centos9を再インストールする"
+				send_stats "CentOS9を再インストールする"
 				dd_xitong_3
 				bash reinstall.sh centos 9
 				reboot
@@ -6500,7 +7382,7 @@ dd_xitong() {
 				;;
 
 			  41)
-				send_stats "重装windows11"
+				send_stats "Windows 11を再インストールする"
 				dd_xitong_2
 				bash InstallNET.sh -windows 11 -lang "cn"
 				reboot
@@ -6707,14 +7589,14 @@ bbrv3() {
 					os_codename="releases"
 				fi
 
-				# 官方已彻底移除对 jammy, focal, bullseye 等老系统的 apt 支持
+				# 公式には、jammy、focal、bulseye、その他の古いシステムの apt サポートは完全に削除されました。
 				if echo "jammy focal bullseye buster" | grep -qw "$os_codename" || [ "$os_codename" = "releases" ]; then
 					echo -e "${gl_hong}XanMod は現在のシステムのサポートを正式に停止しました ($os_codename) の場合は、Debian12/Ubuntu24 以降にアップグレードしてください。${gl_bai}"
 					return 1
 				fi
 
 				if [ -z "$os_codename" ]; then
-					echo "无法获取系统代号，无法配置XanMod源"
+					echo "システムコードネームを取得できません。XanMod ソースを構成できません"
 					return 1
 				fi
 
@@ -6774,7 +7656,7 @@ bbrv3() {
 					done
 				done
 
-				echo "软件源中未找到适配此CPU的XanMod内核包" >&2
+				echo "この CPU に適合する XanMod カーネル パッケージがソフトウェア ソースに見つかりませんでした。" >&2
 				return 1
 		  }
 
@@ -6890,7 +7772,7 @@ bbrv3() {
 		  echo "ビデオ紹介: https://www.bilibili.com/video/BV14K421x7BS?t=0.1"
 		  echo "------------------------------------------------"
 		  echo "Debian/Ubuntu のみをサポートします"
-		  echo "データをバックアップしてください。Linux カーネルをアップグレードし、BBR3 を有効にします。"
+		  echo "データをバックアップしてください。Linux カーネルをアップグレードして BBR3 を有効にします。"
 		  echo "------------------------------------------------"
 		  read -e -p "続行してもよろしいですか? (はい/いいえ):" choice
 
@@ -6923,7 +7805,7 @@ elrepo_install() {
 		linux_Settings
 	fi
 	# 検出されたオペレーティング システム情報を印刷する
-	echo "检测到的操作系统: $os_name $os_version"
+	echo "検出されたオペレーティング システム:$os_name $os_version"
 	# システムのバージョンに応じて、対応する ELRepo ウェアハウス構成をインストールします。
 	if [[ "$os_version" == 8 ]]; then
 		echo "ELRepo リポジトリ構成 (バージョン 8) をインストールしています..."
@@ -7084,7 +7966,7 @@ clamav() {
 				echo "ビデオ紹介: https://www.bilibili.com/video/BV1TqvZe4EQm?t=0.1"
 				echo "------------------------"
 				echo "これは、主にさまざまな種類のマルウェアを検出して削除するために使用されるオープンソースのウイルス対策ソフトウェア ツールです。"
-				echo "包括病毒、特洛伊木马、间谍软件、恶意脚本和其他有害软件。"
+				echo "ウイルス、トロイの木馬、スパイウェア、悪意のあるスクリプト、その他の有害なソフトウェアが含まれます。"
 				echo "------------------------"
 				echo -e "${gl_lv}1.フルスキャン${gl_bai}             ${gl_huang}2. 重要なディレクトリをスキャンする${gl_bai}            ${gl_kjlan}3. カスタムディレクトリスキャン${gl_bai}"
 				echo "------------------------"
@@ -7253,7 +8135,7 @@ _kernel_optimize_core() {
 		BACKLOG=1000
 	fi
 
-	# ── ライブブロードキャストシナリオの追加：UDPバッファの拡大 ──
+	# ── 生放送シナリオ追加：UDPバッファ拡大 ──
 	local STREAM_EXTRA=""
 	if [ "$scene" = "stream" ]; then
 		STREAM_EXTRA="
@@ -7306,7 +8188,7 @@ net.ipv4.tcp_slow_start_after_idle = 0"
 net.core.default_qdisc = $QDISC
 net.ipv4.tcp_congestion_control = $CC
 
-# ── TCP 缓冲区 ──
+# ── TCPバッファ ──
 net.core.rmem_max = $RMEM_MAX
 net.core.wmem_max = $WMEM_MAX
 net.core.rmem_default = $(echo "$TCP_RMEM" | awk '{print $2}')
@@ -7492,7 +8374,7 @@ Kernel_optimize() {
 	  echo -e "1. ハイパフォーマンス最適化モード: システムパフォーマンス、積極的なメモリ、およびネットワークパラメータを最大化します。"
 	  echo -e "2. バランスのとれた最適化モード: パフォーマンスとリソース消費のバランスをとり、日常の使用に適しています。"
 	  echo -e "3. Web サイト最適化モード: Web サイトサーバー、超高同時接続キュー用に最適化されています。"
-	  echo -e "4. ライブ ブロードキャスト最適化モード: ライブ ストリーミングの最適化では、遅延を減らすために UDP バッファーが拡大されます。"
+	  echo -e "4. ライブ ブロードキャスト最適化モード: ライブ ストリーミングを最適化するために、UDP バッファーを拡大して遅延を削減します。"
 	  echo -e "5. ゲームサーバー最適化モード：低遅延を優先してゲームサーバーに最適化します。"
 	  echo -e "6. デフォルト設定の復元: システム設定をデフォルト構成に復元します。"
 	  echo -e "7. 自動チューニング: テストデータに基づいてカーネルパラメータを自動的にチューニングします。${gl_huang}★${gl_bai}"
@@ -7617,7 +8499,7 @@ while true; do
   case $choice in
 	  1)
 		  update_locale "en_US.UTF-8" "en_US.UTF-8"
-		  send_stats "英語に切り替えてください"
+		  send_stats "英語に切り替えて"
 		  ;;
 	  2)
 		  update_locale "zh_CN.UTF-8" "zh_CN.UTF-8"
@@ -7790,9 +8672,9 @@ send_stats "コマンドのお気に入り"
 bash <(curl -l -s ${gh_proxy}raw.githubusercontent.com/byJoey/cmdbox/refs/heads/main/install.sh)
 }
 
-# バックアップの作成
+# バックアップを作成する
 create_backup() {
-	send_stats "バックアップの作成"
+	send_stats "バックアップを作成する"
 	local TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 
 	# ユーザーにバックアップ ディレクトリの入力を求めるプロンプトを表示する
@@ -7834,7 +8716,7 @@ create_backup() {
 		echo "- $path"
 	done
 
-	# バックアップの作成
+	# バックアップを作成する
 	echo "バックアップの作成$BACKUP_NAME..."
 	install tar
 	tar -czvf "$BACKUP_DIR/$BACKUP_NAME" "${BACKUP_PATHS[@]}"
@@ -7922,7 +8804,7 @@ linux_backup() {
 			3) delete_backup ;;
 			*) break ;;
 		esac
-		read -e -p "Enter を押して続行します..."
+		read -e -p "続行するには Enter キーを押してください..."
 	done
 }
 
@@ -8246,7 +9128,7 @@ list_partitions() {
 # 永続的にマウントされたパーティション
 mount_partition() {
 	send_stats "パーティションのマウント"
-	read -e -p "マウントするパーティション名を入力してください (例: sda1):" PARTITION
+	read -e -p "マウントするパーティションの名前を入力してください (例: sda1):" PARTITION
 
 	DEVICE="/dev/$PARTITION"
 	MOUNT_POINT="/mnt/$PARTITION"
@@ -8291,7 +9173,7 @@ mount_partition() {
 
 	# /etc/fstab をチェックして、UUID またはマウント ポイントがすでに存在するかどうかを確認します。
 	if grep -qE "UUID=$UUID|[[:space:]]$MOUNT_POINT[[:space:]]" /etc/fstab; then
-		echo "パーティション レコードはすでに /etc/fstab に存在するため、書き込みをスキップします"
+		echo "パーティション レコードは既に /etc/fstab に存在するため、書き込みをスキップします"
 		return 0
 	fi
 
@@ -8403,7 +9285,7 @@ disk_manager() {
 	send_stats "ハードディスク管理機能"
 	while true; do
 		clear
-		echo "ハードドライブのパーティション管理"
+		echo "ハードディスクのパーティション管理"
 		echo -e "${gl_huang}この機能は内部テスト中であるため、運用環境では使用しないでください。${gl_bai}"
 		echo "------------------------"
 		list_partitions
@@ -8422,7 +9304,7 @@ disk_manager() {
 			5) check_partition ;;
 			*) break ;;
 		esac
-		read -e -p "Enter を押して続行します..."
+		read -e -p "続行するには Enter キーを押してください..."
 	done
 }
 
@@ -8528,7 +9410,7 @@ run_task() {
 
 	# タスク番号が渡されない場合、ユーザーは入力を求められます。
 	if [[ -z "$num" ]]; then
-		read -e -p "请输入要执行的任务编号: " num
+		read -e -p "実行するタスク番号を入力してください:" num
 	fi
 
 	local task=$(sed -n "${num}p" "$CONFIG_FILE")
@@ -8628,7 +9510,7 @@ schedule_task() {
 	echo "スケジュールされたタスクが作成されました:$cron_job"
 }
 
-# 查看定时任务
+# スケジュールされたタスクを表示する
 view_tasks() {
 	echo "現在スケジュールされているタスク:"
 	echo "---------------------------------"
@@ -8679,9 +9561,9 @@ rsync_manager() {
 			5) schedule_task ;;
 			6) delete_task_schedule ;;
 			0) break ;;
-			*) echo "无效的选择，请重试。" ;;
+			*) echo "選択が無効です。もう一度お試しください。" ;;
 		esac
-		read -e -p "Enter を押して続行します..."
+		read -e -p "続行するには Enter キーを押してください..."
 	done
 }
 
@@ -8699,7 +9581,7 @@ linux_info() {
 
 	clear
 	echo -e "${gl_kjlan}システム情報を問い合わせています...${gl_bai}"
-	send_stats "系统信息查询"
+	send_stats "システム情報の問い合わせ"
 
 	ip_address
 
@@ -8755,7 +9637,7 @@ linux_info() {
 	echo -e "${gl_kjlan}-------------"
 	echo -e "${gl_kjlan}ホスト名:${gl_bai}$hostname"
 	echo -e "${gl_kjlan}システムバージョン:${gl_bai}$os_info"
-	echo -e "${gl_kjlan}Linux版本:      ${gl_bai}$kernel_version"
+	echo -e "${gl_kjlan}Linux バージョン:${gl_bai}$kernel_version"
 	echo -e "${gl_kjlan}-------------"
 	echo -e "${gl_kjlan}CPU アーキテクチャ:${gl_bai}$cpu_arch"
 	echo -e "${gl_kjlan}CPUモデル:${gl_bai}$cpu_info"
@@ -8784,7 +9666,7 @@ linux_info() {
 	fi
 	echo -e "${gl_kjlan}DNS アドレス:${gl_bai}$dns_addresses"
 	echo -e "${gl_kjlan}位置：${gl_bai}$country $city"
-	echo -e "${gl_kjlan}系统时间:       ${gl_bai}$timezone $current_time"
+	echo -e "${gl_kjlan}システム時間:${gl_bai}$timezone $current_time"
 	echo -e "${gl_kjlan}-------------"
 	echo -e "${gl_kjlan}実行時間:${gl_bai}$runtime"
 	echo
@@ -8825,7 +9707,7 @@ linux_tools() {
 	  elif command -v pkg >/dev/null 2>&1; then
 		PM="pkg"
 	  else
-		echo "❌ 未识别的包管理器"
+		echo "❌ 認識されないパッケージマネージャー"
 		exit 1
 	  fi
 
@@ -8856,7 +9738,7 @@ linux_tools() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}1.   ${gl_bai}カールダウンロードツール${gl_huang}★${gl_bai}                   ${gl_kjlan}2.   ${gl_bai}wgetダウンロードツール${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}3.   ${gl_bai}sudo スーパー管理者特権ツール${gl_kjlan}4.   ${gl_bai}socat通信接続ツール"
-	  echo -e "${gl_kjlan}5.   ${gl_bai}htop 系统监控工具                 ${gl_kjlan}6.   ${gl_bai}iftop ネットワークトラフィック監視ツール"
+	  echo -e "${gl_kjlan}5.   ${gl_bai}htop システム監視ツール${gl_kjlan}6.   ${gl_bai}iftop ネットワークトラフィック監視ツール"
 	  echo -e "${gl_kjlan}7.   ${gl_bai}unzip ZIP圧縮・解凍ツール${gl_kjlan}8.   ${gl_bai}tar GZ 圧縮および解凍ツール"
 	  echo -e "${gl_kjlan}9.   ${gl_bai}tmux マルチチャネル バックグラウンド実行ツール${gl_kjlan}10.  ${gl_bai}ffmpeg ビデオエンコードライブストリーミングツール"
 	  echo -e "${gl_kjlan}------------------------"
@@ -8866,13 +9748,13 @@ linux_tools() {
 	  echo -e "${gl_kjlan}17.  ${gl_bai}git バージョン管理システム${gl_kjlan}18.  ${gl_bai}opencode AI プログラミング アシスタント${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}21.  ${gl_bai}マトリックス スクリーンセーバー${gl_kjlan}22.  ${gl_bai}走る電車のスクリーンセーバー"
-	  echo -e "${gl_kjlan}26.  ${gl_bai}俄罗斯方块小游戏                  ${gl_kjlan}27.  ${gl_bai}ヘビのミニゲーム"
-	  echo -e "${gl_kjlan}28.  ${gl_bai}太空入侵者小游戏"
+	  echo -e "${gl_kjlan}26.  ${gl_bai}テトリスのミニゲーム${gl_kjlan}27.  ${gl_bai}ヘビのミニゲーム"
+	  echo -e "${gl_kjlan}28.  ${gl_bai}スペースインベーダーのミニゲーム"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}31.  ${gl_bai}すべてインストールする${gl_kjlan}32.  ${gl_bai}すべてインストール (スクリーンセーバーとゲームを除く)${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}33.  ${gl_bai}すべてアンインストールする"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}41.  ${gl_bai}安装指定工具                      ${gl_kjlan}42.  ${gl_bai}指定されたツールをアンインストールします"
+	  echo -e "${gl_kjlan}41.  ${gl_bai}指定されたツールをインストールする${gl_kjlan}42.  ${gl_bai}指定されたツールをアンインストールします"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}メインメニューに戻る"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -8891,7 +9773,7 @@ linux_tools() {
 			  clear
 			  install wget
 			  clear
-			  echo "工具已安装，使用方法如下："
+			  echo "ツールはインストールされており、次のように使用されます。"
 			  wget --help
 			  send_stats "wgetをインストールする"
 			  ;;
@@ -8990,7 +9872,7 @@ linux_tools() {
 			  clear
 			  fzf
 			  cd ~
-			  send_stats "安装fzf"
+			  send_stats "fzfをインストールする"
 			  ;;
 			15)
 			  clear
@@ -9029,7 +9911,7 @@ linux_tools() {
 			  source ~/.bashrc
 			  source ~/.profile
 			  opencode
-			  send_stats "安装opencode"
+			  send_stats "オープンコードをインストールする"
 			  ;;
 
 
@@ -9179,7 +10061,7 @@ docker_ssh_migration() {
 
 	list_backups() {
 		local BACKUP_ROOT="/tmp"
-		echo -e "${gl_kjlan}当前备份列表:${gl_bai}"
+		echo -e "${gl_kjlan}現在のバックアップ リスト:${gl_bai}"
 		ls -1dt ${BACKUP_ROOT}/docker_backup_* 2>/dev/null || echo "バックアップなし"
 	}
 
@@ -9269,7 +10151,7 @@ docker_ssh_migration() {
 				mapfile -t ENVS < <(jq -r '.[0].Config.Env[] | @sh' "$inspect_file")
 				for e in "${ENVS[@]}"; do ENV_VARS+="-e $e "; done
 
-				# 卷映射
+				# ボリュームマッピング
 				local VOL_ARGS=""
 				for path in $VOL_PATHS; do VOL_ARGS+="-v $path:$path "; done
 
@@ -9291,14 +10173,14 @@ docker_ssh_migration() {
 		fi
 
 		chmod +x "$RESTORE_SCRIPT"
-		echo -e "${gl_lv}备份完成: ${BACKUP_DIR}${gl_bai}"
+		echo -e "${gl_lv}バックアップが完了しました:${BACKUP_DIR}${gl_bai}"
 		echo -e "${gl_lv}利用可能な復元スクリプト:${RESTORE_SCRIPT}${gl_bai}"
 
 
 	}
 
 	# ----------------------------
-	# 还原
+	# 削減
 	# ----------------------------
 	restore_docker() {
 
@@ -9320,7 +10202,7 @@ docker_ssh_migration() {
 				[[ -f "$path_file" ]] && original_path=$(cat "$path_file") || original_path=""
 				[[ -z "$original_path" ]] && read -e -p  "元のパスが見つかりません。復元ディレクトリのパスを入力してください:" original_path
 
-				# 構成プロジェクトのコンテナがすでに実行されているかどうかを確認します
+				# 作成プロジェクトのコンテナがすでに実行されているかどうかを確認します
 				running_count=$(docker ps --filter "label=com.docker.compose.project=$project_name" --format '{{.Names}}' | wc -l)
 				if [[ "$running_count" -gt 0 ]]; then
 					echo -e "${gl_huang}プロジェクトの作成 [$project_name] コンテナはすでに実行されているため、復元をスキップします...${gl_bai}"
@@ -9434,7 +10316,7 @@ docker_ssh_migration() {
 
 		echo -e "${gl_huang}バックアップを転送中...${gl_bai}"
 		if [[ -z "$TARGET_PASS" ]]; then
-			# キーを使用してログインする
+			# キーでログイン
 			scp -P "$TARGET_PORT" -o StrictHostKeyChecking=no -r "$LATEST_TAR" "$TARGET_USER@$TARGET_IP:/tmp/"
 		fi
 
@@ -9651,7 +10533,7 @@ linux_docker() {
 				  echo ""
 				  echo "ボリューム操作"
 				  echo "------------------------"
-				  echo "1. 新しいボリュームを作成する"
+				  echo "1. 新しいボリュームを作成します"
 				  echo "2. 指定したボリュームを削除します"
 				  echo "3. すべてのボリュームを削除します"
 				  echo "------------------------"
@@ -9833,7 +10715,7 @@ kpanel_node_ensure_account() {
 	local nologin_shell="/usr/sbin/nologin" sysusers_config=""
 	if id kejilion-node >/dev/null 2>&1; then
 		[ "$(id -gn kejilion-node 2>/dev/null)" = "kejilion-node" ] || {
-			echo "既存の kejilion-node アカウントのプライマリ グループは安全ではないため、続行は拒否されます。" >&2
+			echo "既存の kejilion-node アカウントのプライマリ グループは安全ではないため、続行を拒否します。" >&2
 			return 1
 		}
 		return 0
@@ -10352,7 +11234,7 @@ linux_test() {
 	  echo -e "${gl_kjlan}15.  ${gl_bai}nxtrace は IP バックホール テスト スクリプトを指定します"
 	  echo -e "${gl_kjlan}16.  ${gl_bai}ludashi2020 3つのネットワーク回線テスト"
 	  echo -e "${gl_kjlan}17.  ${gl_bai}i-abc 多機能速度テスト スクリプト"
-	  echo -e "${gl_kjlan}18.  ${gl_bai}NetQuality 网络质量体检脚本 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}18.  ${gl_bai}NetQuality ネットワーク品質チェック スクリプト${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}19.  ${gl_bai}TcpQuality TCP 再送検出スクリプト${gl_huang}★${gl_bai}"
 
 	  echo -e "${gl_kjlan}------------------------"
@@ -10362,7 +11244,7 @@ linux_test() {
 
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}総合的なテスト"
-	  echo -e "${gl_kjlan}31.  ${gl_bai}bench 性能测试"
+	  echo -e "${gl_kjlan}31.  ${gl_bai}ベンチパフォーマンステスト"
 	  echo -e "${gl_kjlan}32.  ${gl_bai}Spiritysdx融合モンスターの評価${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}33.  ${gl_bai}ノードクオリティ融合モンスターの評価${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
@@ -10389,7 +11271,7 @@ linux_test() {
 			  ;;
 		  4)
 			  clear
-			  send_stats "xykt_IP质量体检脚本"
+			  send_stats "xykt_IP 品質チェック スクリプト"
 			  bash <(curl -Ls IP.Check.Place)
 			  ;;
 
@@ -10429,7 +11311,7 @@ linux_test() {
 			  echo "上海モバイル: 211.136.112.200"
 			  echo "広州電信: 58.60.188.222"
 			  echo "広州チャイナユニコム: 210.21.196.6"
-			  echo "广州移动: 120.196.165.24"
+			  echo "広州モバイル: 120.196.165.24"
 			  echo "成都電信: 61.139.2.69"
 			  echo "成都チャイナユニコム: 119.6.6.6"
 			  echo "成都携帯電話: 211.137.96.205"
@@ -10529,7 +11411,7 @@ linux_Oracle() {
 	  echo -e "${gl_kjlan}3.   ${gl_bai}DD 再インストール システム スクリプト"
 	  echo -e "${gl_kjlan}4.   ${gl_bai}探偵R起動スクリプト"
 	  echo -e "${gl_kjlan}5.   ${gl_bai}ROOTパスワードログインモードを有効にする"
-	  echo -e "${gl_kjlan}6.   ${gl_bai}IPV6恢复工具"
+	  echo -e "${gl_kjlan}6.   ${gl_bai}IPV6回復ツール"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}メインメニューに戻る"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -10551,20 +11433,20 @@ linux_Oracle() {
 				  local DEFAULT_MEM_UTIL=20
 				  local DEFAULT_SPEEDTEST_INTERVAL=120
 
-				  # ユーザーに CPU コアの数と占有率を入力するよう求めます。ユーザーが Enter キーを押すと、デフォルト値が使用されます。
+				  # CPU コアの数と占有率を入力するようユーザーに求めます。ユーザーが Enter キーを押すと、デフォルト値が使用されます。
 				  read -e -p "CPU コアの数を入力してください [デフォルト:$DEFAULT_CPU_CORE]: " cpu_core
 				  local cpu_core=${cpu_core:-$DEFAULT_CPU_CORE}
 
 				  read -e -p "CPU 使用率の範囲 (例: 10 ～ 20) を入力してください [デフォルト:$DEFAULT_CPU_UTIL]: " cpu_util
 				  local cpu_util=${cpu_util:-$DEFAULT_CPU_UTIL}
 
-				  read -e -p "请输入内存占用百分比 [默认: $DEFAULT_MEM_UTIL]: " mem_util
+				  read -e -p "メモリ使用率を入力してください [デフォルト:$DEFAULT_MEM_UTIL]: " mem_util
 				  local mem_util=${mem_util:-$DEFAULT_MEM_UTIL}
 
 				  read -e -p "Speedtest の間隔時間 (秒) を入力してください [デフォルト:$DEFAULT_SPEEDTEST_INTERVAL]: " speedtest_interval
 				  local speedtest_interval=${speedtest_interval:-$DEFAULT_SPEEDTEST_INTERVAL}
 
-				  # 运行Docker容器
+				  # Dockerコンテナを実行する
 				  docker run -d --name=lookbusy --restart=always \
 					  -e TZ=Asia/Shanghai \
 					  -e CPU_UTIL="$cpu_util" \
@@ -10592,7 +11474,7 @@ linux_Oracle() {
 
 		  3)
 		  clear
-		  echo "重装系统"
+		  echo "システムを再インストールする"
 		  echo "--------------------------------"
 		  echo -e "${gl_hong}知らせ：${gl_bai}再インストールすると接続が切れる可能性がありますので、不安な方はご注意ください。再インストールには 15 分程度かかることが予想されますので、事前にデータをバックアップしてください。"
 		  read -e -p "続行してもよろしいですか? (はい/いいえ):" choice
@@ -10877,7 +11759,7 @@ ldnmp_environment_install() {
 	case "$profile" in
 		full) kpanel_ldnmp_event install 15 "完全な LDNMP のインストール"; ldnmp_install_all ;;
 		nginx) kpanel_ldnmp_event install 15 "nginxのインストール"; nginx_install_all ;;
-		*) echo "不支持的安装形态" >&2; return 2 ;;
+		*) echo "サポートされていないインストール形式" >&2; return 2 ;;
 	esac
 	kpanel_ldnmp_event verify 90 "環境の検証"
 	docker exec nginx nginx -t >/dev/null 2>&1 || return 1
@@ -11548,7 +12430,7 @@ linux_ldnmp() {
 	  echo "パスワード: 管理者"
 	  echo "------------------------"
 	  echo "ログイン時に右上隅に赤色の error0 が表示される場合は、次のコマンドを使用してください。"
-	  echo "私も、なぜユニコーンナンバーカードがこんなに面倒で、こんな問題を抱えているのか、とても腹が立っています。"
+	  echo "私も、なぜユニコーンナンバーカードがこんなに面倒で、こんな問題を抱えているのか、とても憤りを感じています。"
 	  echo "sed -i 's/ADMIN_HTTPS=false/ADMIN_HTTPS=true/g' /home/web/html/$yuming/dujiaoka/.env"
 
 		;;
@@ -12527,7 +13409,7 @@ work = copy.deepcopy(obj)
 models_cfg = work.setdefault('models', {})
 providers = models_cfg.get('providers', {})
 if not isinstance(providers, dict) or not providers:
-    print('ℹ️ 未检测到 API providers，跳过模型同步')
+    print('ℹ️ API プロバイダーが検出されず、モデルの同期がスキップされました')
     raise SystemExit(0)
 
 agents = work.setdefault('agents', {})
@@ -12634,7 +13516,7 @@ def rebind_defaults_before_delete(name):
                 return False
             defaults[fk] = repl
             changed = True
-            summary.append(f'🔁 删除前已切换 {fk}: {val} -> {repl}')
+            summary.append(f'🔁 削除前に切り替えられた {fk}: {val} -> {repl}')
 
     return True
 
@@ -12823,7 +13705,7 @@ if changed:
 else:
     for line in summary:
         print(line)
-    print('ℹ️ 无需同步：配置已与上游 /models 保持一致')
+    print('ℹ️ 同期は必要ありません: 構成はすでに上流の /models と一致しています')
 PY
 	}
 
@@ -12869,7 +13751,7 @@ PY
 	}
 
 	view_logs() {
-		echo "查看 OpenClaw 状态日志"
+		echo "OpenClaw ステータス ログを表示する"
 		send_stats "OpenClaw ログを表示する"
 		openclaw status
 		openclaw gateway status
@@ -13048,7 +13930,7 @@ EOF
 
 		if [[ $? -eq 0 ]]; then
 			echo "✅ プロバイダーが追加しました:$provider_name"
-			echo "✅ 仅写入默认模型：$default_model"
+			echo "✅ デフォルトのモデルにのみ書き込みます:$default_model"
 			return 0
 		else
 			echo "❌ 構成の挿入に失敗しました"
@@ -13076,15 +13958,15 @@ EOF
 		base_url="${base_url%/}"
 
 		# 3. API Key
-		read -rsp "请输入 API Key (输入不显示): " api_key
+		read -rsp "API キーを入力してください (入力は表示されません):" api_key
 		echo
 		while [[ -z "$api_key" ]]; do
 			echo "❌ API キーを空にすることはできません"
-			read -rsp "请输入 API Key: " api_key
+			read -rsp "API キーを入力してください:" api_key
 			echo
 		done
 
-		# 4. API タイプを検出/決定しなくなりました。プロトコルはユーザー自身によって選択および維持されます
+		# 4. API タイプの検出/判断が行われなくなりました。プロトコルはユーザー自身によって選択および維持されます
 
 		# 5. モデルリストの取得
 		echo "🔍 利用可能なモデルのリストを取得中..."
@@ -13113,7 +13995,7 @@ EOF
 
 		# 5. デフォルトのモデルを選択します
 		echo
-		read -erp "デフォルトのモデル ID (またはシリアル番号。最初のものを使用する場合は空白のままにします) を入力してください。" input_model
+		read -erp "デフォルトのモデル ID (またはシリアル番号、最初のものを使用する場合は空白のままにしておきます) を入力してください:" input_model
 
 		if [[ -z "$input_model" && -n "$available_models" ]]; then
 			default_model=$(echo "$available_models" | head -1)
@@ -13132,7 +14014,7 @@ EOF
 		echo "Base URL    : $base_url"
 		echo "API Key     : ${api_key:0:8}****"
 		echo "デフォルトのモデル:$default_model"
-		echo "模型总数    : $model_count"
+		echo "モデルの総数:$model_count"
 		echo "======================"
 
 		read -erp "他の利用可能なモデルをすべて同時に追加しますか? (y/N):" confirm
@@ -13254,7 +14136,7 @@ for idx, name in enumerate(sorted(providers.keys()), start=1):
         api = provider.get('api', '')
         api_key = provider.get('apiKey')
 
-        latency_raw = '未检测'
+        latency_raw = '検出されませんでした'
         if api in SUPPORTED_APIS:
             if isinstance(base_url, str) and base_url != '-' and isinstance(api_key, str) and api_key:
                 try:
@@ -13408,7 +14290,7 @@ if err is not None:
     raise SystemExit(4)
 
 if not (isinstance(data, dict) and isinstance(data.get('data'), list)):
-    print(f'❌ {target}: /models 返された構造は認識されません')
+    print(f'❌ {target}: /models 返された構造体は認識されません')
     raise SystemExit(4)
 
 remote_ids = []
@@ -14177,13 +15059,13 @@ PYTHON_EOF
 				return 0
 			else
 				if ! command -v gum >/dev/null 2>&1 || ! gum --version >/dev/null 2>&1; then
-					echo "gum 不可用，返回旧版输入模式。"
+					echo "ガムは使用できなくなり、古い入力モードに戻ります。"
 					sleep 1
 					continue
 				fi
 				gum style --foreground "$orange" --bold "モデル管理"
 				gum style --foreground "$orange" "利用可能なモデル (認証=はい):${model_count}"
-				gum style --foreground "$orange" "当前默认：${default_model}"
+				gum style --foreground "$orange" "現在のデフォルト:${default_model}"
 				echo ""
 				gum style --faint "↑↓ 選択 / Enter でテスト / Esc で終了"
 				echo ""
@@ -14470,9 +15352,9 @@ PYTHON_EOF
 		while true; do
 			clear
 			echo "========================================"
-			echo "            插件管理 (安装/删除)            "
+			echo "プラグイン管理（インストール/削除）"
 			echo "========================================"
-			echo "当前插件列表:"
+			echo "現在のプラグインのリスト:"
 			openclaw plugins list
 			echo "--------------------------------------------------------"
 			echo "推奨される一般的に使用されるプラグイン ID (括弧内の ID をコピーするだけです):"
@@ -14490,7 +15372,7 @@ PYTHON_EOF
 			echo "- [memory-lancedb] # メモリの強化 (ベクターデータベース)"
 			echo "- [copilot-proxy] # コパイロットインターフェイスの転送"
 			echo ""
-			echo "⚙️ 功能扩展:"
+			echo "⚙️機能拡張:"
 			echo "- [lobster] # 承認フロー（手動確認あり）"
 			echo "- [voice-call] # 音声通話機能"
 			echo "- [nostr] # 暗号化されたプライベートチャット"
@@ -14550,11 +15432,11 @@ PYTHON_EOF
 						continue
 					fi
 
-					echo "📥 本地未发现，尝试下载安装: $plugin_full"
+					echo "📥 ローカルに見つかりません。ダウンロードしてインストールしてください:$plugin_full"
 					rm -rf "${HOME}/.openclaw/extensions/$plugin_id"
 					[ "$HOME" != "/root" ] && rm -rf "/root/.openclaw/extensions/$plugin_id"
 					if openclaw plugins install "$plugin_full"; then
-						echo "✅ ダウンロードに成功しました。アクティブ化しています..."
+						echo "✅ ダウンロードが成功しました。アクティブ化されています..."
 						if openclaw plugins enable "$plugin_id"; then
 							sync_openclaw_plugin_allowlist "$plugin_id"
 							success_list="$success_list $plugin_id"
@@ -14600,7 +15482,7 @@ PYTHON_EOF
 		while true; do
 			clear
 			echo "========================================"
-			echo "            技能管理 (安装/删除)            "
+			echo "スキル管理（インストール/削除）"
 			echo "========================================"
 			echo "現在インストールされているスキル:"
 			openclaw skills list
@@ -14619,7 +15501,7 @@ PYTHON_EOF
 			echo "ヒマラヤ # 端末メール管理（IMAP/SMTP強力ツール）"
 			echo "要約 # ウェブページ/ポッドキャスト/YouTube ビデオ コンテンツのワンクリック要約"
 			echo "openhue # Philips Hue スマート照明シーンの制御"
-			echo "video-frames       # 视频抽帧与短片剪辑 (ffmpeg 驱动)"
+			echo "video-frames # ビデオフレーム抽出とショートクリップ編集 (ffmpeg ドライバー)"
 			echo "openai-whisper # ローカル音声をテキストに変換 (オフラインのプライバシー保護)"
 			echo "coding-agent # Claude Code/Codex などのプログラミング アシスタントを自動的に実行する"
 			echo "----------------------------------------"
@@ -14676,7 +15558,7 @@ PYTHON_EOF
 
 					echo "スキルのインストール:$skill_name ..."
 					if npx clawhub install "$skill_name" --yes --no-input 2>/dev/null || npx clawhub install "$skill_name"; then
-						echo "✅ スキル$skill_name 安装成功。"
+						echo "✅ スキル$skill_nameインストールが成功しました。"
 						success_list="$success_list $skill_name"
 						changed=true
 					else
@@ -14684,7 +15566,7 @@ PYTHON_EOF
 						failed_list="$failed_list $skill_name"
 					fi
 				else
-					echo "🗑️ 正在删除技能: $skill_name"
+					echo "🗑️ スキルの削除:$skill_name"
 					npx clawhub uninstall "$skill_name" --yes --no-input 2>/dev/null || npx clawhub uninstall "$skill_name" >/dev/null 2>&1
 					if [ -d "${HOME}/.openclaw/workspace/skills/${skill_name}" ]; then
 						rm -rf "${HOME}/.openclaw/workspace/skills/${skill_name}"
@@ -14957,7 +15839,7 @@ openclaw_json_get_bool() {
 
 			case $bot_choice in
 				1)
-					read -e -p "请输入TG机器人收到的连接码 (例如 NYA99R2F)（输入 0 退出）： " code
+					read -e -p "TG ロボットが受信した接続コード (NYA99R2F など) を入力してください (終了するには 0 を入力します)。" code
 					if [ "$code" = "0" ]; then continue; fi
 					if [ -z "$code" ]; then echo "エラー: 接続コードを空にすることはできません。"; sleep 1; continue; fi
 					openclaw pairing approve telegram "$code"
@@ -15087,7 +15969,7 @@ EOF
 	openclaw_offer_transfer_hint() {
 		local file_path="$1"
 
-		echo "可使用以下方式下载备份文件："
+		echo "バックアップ ファイルは次の方法でダウンロードできます。"
 		echo "- ローカルパス:$file_path"
 		echo "- scp の例: scp root@yourserver:$file_path ./"
 		echo "- またはSFTPクライアントを使用してダウンロード"
@@ -15365,7 +16247,7 @@ if os.path.isdir(agents_root):
 
 		echo "バックアップディレクトリ:$backup_root"
 		if [ ${#OPENCLAW_BACKUP_FILES[@]} -eq 0 ]; then
-			echo "バックアップファイルはまだありません"
+			echo "まだバックアップファイルがありません"
 			return 0
 		fi
 
@@ -15862,7 +16744,7 @@ PY
 		elif [ "$mirror_ok" = "ok" ]; then
 			OPENCLAW_MEMORY_RECOMMEND_REASON+=("hf-mirror.com にアクセスできます")
 		else
-			OPENCLAW_MEMORY_RECOMMEND_REASON+=("Huggingface.co / hf-mirror.com にアクセスできない可能性があります (国内/制限付きネットワークの疑い)")
+			OPENCLAW_MEMORY_RECOMMEND_REASON+=("Huggingface.co / hf-mirror.com にアクセスできない可能性があります (国内/制限されたネットワークの疑い)")
 		fi
 
 		if [ "$qmd_ok" = "true" ]; then
@@ -15963,7 +16845,7 @@ PY
 			echo "✅ パンはすでに存在します"
 			return 0
 		fi
-		echo "⬇️ 安装 bun..."
+		echo "⬇️バンをインストール..."
 		if command -v curl >/dev/null 2>&1; then
 			curl -fsSL https://bun.sh/install | bash
 		elif command -v wget >/dev/null 2>&1; then
@@ -16106,7 +16988,7 @@ PY
 			echo "✅memory.backendはすでにqmdです"
 		else
 			openclaw_memory_config_set "memory.backend" "qmd"
-			echo "✅ 已设置 memory.backend=qmd"
+			echo "✅memory.backend=qmdが設定されています"
 		fi
 		local qmd_cmd
 		qmd_cmd=$(openclaw_memory_config_get "memory.qmd.command")
@@ -16142,7 +17024,7 @@ EOF
 			echo "✅memory.backendはすでに組み込まれています"
 		else
 			openclaw_memory_config_set "memory.backend" "builtin"
-			echo "✅ 已设置 memory.backend=builtin"
+			echo "✅memory.backend=builtinが設定されています"
 		fi
 		provider=$(openclaw_memory_config_get "agents.defaults.memorySearch.provider")
 		if [ "$provider" = "local" ]; then
@@ -16257,7 +17139,7 @@ EOF
 			echo "======================================="
 			echo "1. QMD"
 			echo "2. Local"
-			echo "3. Auto（自动选择）"
+			echo "3.オート（自動選択）"
 			echo "0. 前のレベルに戻ります"
 			echo "---------------------------------------"
 			read -e -p "選択肢を入力してください:" auto_choice
@@ -16278,7 +17160,7 @@ EOF
 					return 0
 					;;
 				*)
-					echo "无效的选择，请重试。"
+					echo "選択が無効です。もう一度お試しください。"
 					sleep 1
 					;;
 			esac
@@ -16338,7 +17220,7 @@ EOF
 		echo "======================================="
 		echo "インデックス修復診断"
 		echo "======================================="
-		echo "当前 includeDefaultMemory: ${include_dm:-未设置}"
+		echo "現在 includeDefaultMemory: ${include_dm:-not set}"
 		echo ""
 		if [ "$include_dm" = "false" ]; then
 			echo "⚠️ includeDefaultMemory=false が検出されました"
@@ -16383,7 +17265,7 @@ EOF
 			case "$backend" in
 				qmd) current_label="QMD" ;;
 				builtin|local) current_label="Local" ;;
-				*) current_label="未配置" ;;
+				*) current_label="未設定" ;;
 			esac
 			echo "現在の計画:$current_label"
 			echo ""
@@ -16453,7 +17335,7 @@ EOF
 			echo "メモリファイルが見つかりません。"
 			return 0
 		fi
-		echo "编号 | 归属 | 大小 | 修改时间"
+		echo "番号 |帰属 |サイズ |変更時間"
 		echo "---------------------------------------"
 		local i file rel size mtime
 		for i in "${!OPENCLAW_MEMORY_FILES[@]}"; do
@@ -16476,7 +17358,7 @@ EOF
 		local default_lines=120
 		local start_line count
 		echo "書類：$file"
-		echo "合計行数:$total_lines"
+		echo "総行数:$total_lines"
 		read -e -p "開始行を入力してください (Enter キーを押すとデフォルトで行の終わりになります)$default_linesわかりました）：" start_line
 		read -e -p "表示する行数を入力してください (デフォルトでは Enter キーを押します)$default_lines）: " count
 		[ -z "$count" ] && count=$default_lines
@@ -16574,9 +17456,9 @@ EOF
 			echo "4. メモリ ソリューション (QMD/ローカル/自動)"
 			echo "5. 検索テスト (インデックスが機能していることを確認します)"
 			echo "6. ディープステート検出 (組み込みモデルのチェック)"
-			echo "0. 返回上一级"
+			echo "0. 前のレベルに戻ります"
 			echo "---------------------------------------"
-			read -e -p "请输入你的选择: " memory_choice
+			read -e -p "選択肢を入力してください:" memory_choice
 			case "$memory_choice" in
 				1)
 					echo "メモリインデックスは間もなく更新されます。"
@@ -16693,7 +17575,7 @@ EOF
 
 	openclaw_permission_restart_gateway() {
 		if ! openclaw_has_command openclaw; then
-			echo "❌ openclaw が検出されず、OpenClaw Gateway を再起動できません。"
+			echo "❌ OpenClaw が検出されず、OpenClaw Gateway を再起動できません。"
 			return 1
 		fi
 		echo "OpenClaw ゲートウェイを再起動しています..."
@@ -16935,7 +17817,7 @@ except Exception:
     print("(設定ファイルの解析に失敗しました)")
 '
 		else
-			echo "  (未配置，强制使用系统内置安全兜底策略)"
+			echo "(未構成、システムの組み込みセキュリティ ポリシーの使用が強制されます)"
 		fi
 	}
 
@@ -16973,7 +17855,7 @@ except Exception:
 		openclaw_permission_update_exec_approvals "allowlist" "on-miss" "deny"
 
 		openclaw_permission_restart_gateway
-		echo -e "${gl_lv}✅ 開発拡張モードに切り替えました (権限昇格は許可されていますが、一般的な危険なコマンドには引き続き承認が必要です)${gl_bai}"
+		echo -e "${gl_lv}✅ 開発拡張モードに切り替えました (権限昇格は許可されていますが、一般的な危険なコマンドには依然として承認が必要です)${gl_bai}"
 	}
 
 	openclaw_permission_apply_full() {
@@ -16992,7 +17874,7 @@ except Exception:
 		openclaw_permission_update_exec_approvals "full" "off" "full"
 
 		openclaw_permission_restart_gateway
-		echo -e "${gl_lv}✅ 完全オープン モードに切り替えられています (警告: すべてのホスト コマンドのインターセプトの有効期限が切れており、エージェントには最高の権限が与えられています)${gl_bai}"
+		echo -e "${gl_lv}✅ 完全オープン モードに切り替えられています (警告: すべてのホスト コマンド インターセプトの有効期限が切れており、エージェントには最高の権限が与えられています)${gl_bai}"
 	}
 
 	openclaw_permission_restore_official_defaults() {
@@ -17508,7 +18390,7 @@ agents=json.loads(sys.argv[1] or "[]")
 bindings=json.loads(sys.argv[2] or "[]")
 print("---------------------------------------")
 if not agents:
-    print("⚠️ 未发现已配置智能体。")
+    print("⚠️ 設定されたエージェントが見つかりません。")
 else:
     for item in agents:
         ws = item.get("workspace") or ""
@@ -17543,7 +18425,7 @@ print("✅マルチエージェントのヘルスチェックが完了しまし�
 		[ -n "$new_name" ] && cmd="$cmd --name $new_name"
 		[ -n "$new_emoji" ] && cmd="$cmd --emoji $new_emoji"
 		echo "IDENTITY.md から ID 情報を自動的に読み取ることもできます。"
-		read -e -p "是否从 IDENTITY.md 读取？(y/n): " from_id
+		read -e -p "IDENTITY.md から読み取りますか? (y/n):" from_id
 		if [ "$from_id" = "y" ]; then
 			cmd="openclaw agents set-identity --agent $agent_id --from-identity"
 		fi
@@ -17552,7 +18434,7 @@ print("✅マルチエージェントのヘルスチェックが完了しまし�
 
 	openclaw_multiagent_cleanup_sessions() {
 		openclaw_multiagent_require_openclaw || return 1
-		echo "即将清理过期/冗余会话数据..."
+		echo "期限切れ/冗長セッション データを間もなくクリーンアップします..."
 		read -e -p "確認するには「yes」と入力します。" confirm
 		[ "$confirm" != "yes" ] && { echo "キャンセル"; return 0; }
 		openclaw sessions cleanup
@@ -17573,7 +18455,7 @@ print("✅マルチエージェントのヘルスチェックが完了しまし�
 			echo "4. 新しいルート バインディングを追加する"
 			echo "5.ルートバインディングを削除する"
 			echo "6. セッションの概要を表示する"
-			echo "7. 运行多智能体健康检查"
+			echo "7. マルチエージェントのヘルスチェックを実行する"
 			echo "8. エージェントのアイデンティティ (名前/絵文字) を変更します"
 			echo "9. 期限切れのセッションをクリーンアップする"
 			echo "0. 前のレベルに戻ります"
@@ -17607,13 +18489,13 @@ openclaw_backup_restore_menu() {
 			openclaw_backup_render_file_list
 			echo "---------------------------------------"
 			echo "1. メモリ全体をバックアップする"
-			echo "2. 还原记忆全量"
+			echo "2. メモリ全体を復元する"
 			echo "3. OpenClaw プロジェクトをバックアップします (デフォルトのセーフ モード)"
 			echo "4. OpenClaw プロジェクトの復元 (高度/高リスク)"
 			echo "5. バックアップファイルを削除する"
 			echo "0. 前のレベルに戻ります"
 			echo "---------------------------------------"
-			read -e -p "请输入你的选择: " backup_choice
+			read -e -p "選択肢を入力してください:" backup_choice
 
 			case "$backup_choice" in
 				1) openclaw_memory_backup_export ;;
@@ -17856,7 +18738,7 @@ refresh_apps_catalog() {
 
 	install git || return 1
 	if [ -e "$apps_dir" ] && [ ! -d "$apps_dir/.git" ]; then
-		echo -e "${gl_hong}错误: ${gl_bai}${apps_dir}すでに存在しますが、App Market Git リポジトリではないため、上書きは拒否されます。"
+		echo -e "${gl_hong}間違い：${gl_bai}${apps_dir}すでに存在しますが、App Market Git リポジトリではないため、上書きは拒否されます。"
 		return 1
 	fi
 	if [ ! -d "$apps_dir/.git" ]; then
@@ -17867,7 +18749,7 @@ refresh_apps_catalog() {
 		return 0
 	fi
 	if ! timeout 30s git -C "$apps_dir" pull --ff-only "$apps_remote" main; then
-		echo -e "${gl_hong}アプリケーション リストの更新が失敗し、期限切れの可能性がある構成の使用を継続できませんでした。${gl_bai}"
+		echo -e "${gl_hong}アプリケーション リストの更新に失敗し、期限切れの可能性がある構成の使用を継続できませんでした。${gl_bai}"
 		echo "ネットワークを確認するか、${apps_dir}ローカルで変更した後、再試行してください。"
 		return 1
 	fi
@@ -17906,23 +18788,23 @@ while true; do
 	  echo -e "${gl_kjlan}7.   ${color7}Nezha Probe VPS 監視パネル${gl_kjlan}8.   ${color8}QBオフラインBT磁気ダウンロードパネル"
 	  echo -e "${gl_kjlan}9.   ${color9}Poste.io メール サーバー プログラム${gl_kjlan}10.  ${color10}RocketChat 複数人オンライン チャット システム"
 	  echo -e "${gl_kjlan}-------------------------"
-	  echo -e "${gl_kjlan}11.  ${color11}禅道项目管理软件                    ${gl_kjlan}12.  ${color12}Qinglong パネルのスケジュールされたタスク管理プラットフォーム"
+	  echo -e "${gl_kjlan}11.  ${color11}ZenTao プロジェクト管理ソフトウェア${gl_kjlan}12.  ${color12}Qinglong パネルのスケジュールされたタスク管理プラットフォーム"
 	  echo -e "${gl_kjlan}13.  ${color13}Cloudreve ネットワークディスク${gl_huang}★${gl_bai}                     ${gl_kjlan}14.  ${color14}シンプルなピクチャーベッド画像管理プログラム"
-	  echo -e "${gl_kjlan}15.  ${color15}emby マルチメディア管理システム${gl_kjlan}16.  ${color16}Speedtest测速面板"
+	  echo -e "${gl_kjlan}15.  ${color15}emby マルチメディア管理システム${gl_kjlan}16.  ${color16}Speedtest スピードテストパネル"
 	  echo -e "${gl_kjlan}17.  ${color17}AdGuardHome はアドウェアを削除します${gl_kjlan}18.  ${color18}Onlyofficeオンラインオフィス OFFICE"
 	  echo -e "${gl_kjlan}19.  ${color19}Leichi WAF ファイアウォール パネル${gl_kjlan}20.  ${color20}ポーターコンテナ管理パネル"
 	  echo -e "${gl_kjlan}-------------------------"
 	  echo -e "${gl_kjlan}21.  ${color21}VScode Web バージョン${gl_kjlan}22.  ${color22}UptimeKuma監視ツール"
-	  echo -e "${gl_kjlan}23.  ${color23}Memos网页备忘录                     ${gl_kjlan}24.  ${color24}Webtop リモート デスクトップ Web バージョン${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}23.  ${color23}メモウェブメモ${gl_kjlan}24.  ${color24}Webtop リモート デスクトップ Web バージョン${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}25.  ${color25}Nextcloud ネットワーク ディスク${gl_kjlan}26.  ${color26}QD-Today スケジュールされたタスク管理フレームワーク"
 	  echo -e "${gl_kjlan}27.  ${color27}Dockge コンテナ スタック管理パネル${gl_kjlan}28.  ${color28}LibreSpeed 速度テストツール"
 	  echo -e "${gl_kjlan}29.  ${color29}searxng 集約検索ステーション${gl_huang}★${gl_bai}                 ${gl_kjlan}30.  ${color30}PhotoPrismプライベートアルバムシステム"
 	  echo -e "${gl_kjlan}-------------------------"
-	  echo -e "${gl_kjlan}31.  ${color31}StirlingPDF工具大全                 ${gl_kjlan}32.  ${color32}無料のオンライングラフ作成ソフトウェアdrawio${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}31.  ${color31}StirlingPDF ツール コレクション${gl_kjlan}32.  ${color32}無料のオンライングラフ作成ソフトウェアdrawio${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}33.  ${color33}Sun-Panel ナビゲーション パネル${gl_kjlan}34.  ${color34}Pingvin-Share ファイル共有プラットフォーム"
-	  echo -e "${gl_kjlan}35.  ${color35}极简朋友圈                          ${gl_kjlan}36.  ${color36}LobeChatAIチャットアグリゲーションサイト"
+	  echo -e "${gl_kjlan}35.  ${color35}ミニマリストの友達の輪${gl_kjlan}36.  ${color36}LobeChatAIチャットアグリゲーションサイト"
 	  echo -e "${gl_kjlan}37.  ${color37}MyIP ツールボックス${gl_huang}★${gl_bai}                        ${gl_kjlan}38.  ${color38}Xiaoya alistファミリーバケット"
-	  echo -e "${gl_kjlan}39.  ${color39}Bililive ライブ配信録画ツール${gl_kjlan}40.  ${color40}webssh网页版SSH连接工具"
+	  echo -e "${gl_kjlan}39.  ${color39}Bililive ライブ配信録画ツール${gl_kjlan}40.  ${color40}webssh Web版 SSH接続ツール"
 	  echo -e "${gl_kjlan}-------------------------"
 	  echo -e "${gl_kjlan}41.  ${color41}マウス管理パネル${gl_kjlan}42.  ${color42}Nexterm リモート接続ツール"
 	  echo -e "${gl_kjlan}43.  ${color43}RustDesk リモート デスクトップ (サーバー)${gl_huang}★${gl_bai}          ${gl_kjlan}44.  ${color44}RustDesk リモート デスクトップ (リレー)${gl_huang}★${gl_bai}"
@@ -17938,37 +18820,37 @@ while true; do
 	  echo -e "${gl_kjlan}-------------------------"
 	  echo -e "${gl_kjlan}61.  ${color61}オンライン翻訳サーバー${gl_kjlan}62.  ${color62}RAGFlow 大規模モデルのナレッジ ベース"
 	  echo -e "${gl_kjlan}63.  ${color63}OpenWebUI セルフホスト型 AI プラットフォーム${gl_huang}★${gl_bai}             ${gl_kjlan}64.  ${color64}ITツールツールボックス"
-	  echo -e "${gl_kjlan}65.  ${color65}n8n自動ワークフロープラットフォーム${gl_huang}★${gl_bai}               ${gl_kjlan}66.  ${color66}yt-dlp视频下载工具"
+	  echo -e "${gl_kjlan}65.  ${color65}n8n自動ワークフロープラットフォーム${gl_huang}★${gl_bai}               ${gl_kjlan}66.  ${color66}yt-dlp ビデオ ダウンロード ツール"
 	  echo -e "${gl_kjlan}67.  ${color67}ddns-go ダイナミック DNS 管理ツール${gl_huang}★${gl_bai}            ${gl_kjlan}68.  ${color68}AllinSSL 証明書管理プラットフォーム"
 	  echo -e "${gl_kjlan}69.  ${color69}SFTPGo ファイル転送ツール${gl_kjlan}70.  ${color70}AstBot チャットボット フレームワーク"
 	  echo -e "${gl_kjlan}-------------------------"
 	  echo -e "${gl_kjlan}71.  ${color71}Navidrome プライベート ミュージック サーバー${gl_kjlan}72.  ${color72}bitwarden パスワードマネージャー${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}73.  ${color73}LibreTV私有影视                     ${gl_kjlan}74.  ${color74}MoonTV のプライベート ムービー"
-	  echo -e "${gl_kjlan}75.  ${color75}Melody音乐精灵                      ${gl_kjlan}76.  ${color76}オンライン DOS 古いゲーム"
+	  echo -e "${gl_kjlan}73.  ${color73}LibreTV プライベートムービー${gl_kjlan}74.  ${color74}MoonTV のプライベート ムービー"
+	  echo -e "${gl_kjlan}75.  ${color75}メロディー音楽の魔法使い${gl_kjlan}76.  ${color76}オンライン DOS 古いゲーム"
 	  echo -e "${gl_kjlan}77.  ${color77}Thunder オフライン ダウンロード ツール${gl_kjlan}78.  ${color78}PandaWiki インテリジェント文書管理システム"
 	  echo -e "${gl_kjlan}79.  ${color79}Beszel サーバーの監視${gl_kjlan}80.  ${color80}リンクワーデンのブックマーク管理"
 	  echo -e "${gl_kjlan}-------------------------"
-	  echo -e "${gl_kjlan}81.  ${color81}JitsiMeet视频会议                   ${gl_kjlan}82.  ${color82}gpt-load 高性能 AI 透過プロキシ"
+	  echo -e "${gl_kjlan}81.  ${color81}JitsiMeet ビデオ会議${gl_kjlan}82.  ${color82}gpt-load 高性能 AI 透過プロキシ"
 	  echo -e "${gl_kjlan}83.  ${color83}komariサーバー監視ツール${gl_kjlan}84.  ${color84}Wallos の個人財務管理ツール"
-	  echo -e "${gl_kjlan}85.  ${color85}イミッチピクチャービデオマネージャー${gl_kjlan}86.  ${color86}ジェリーフィンメディア管理システム"
+	  echo -e "${gl_kjlan}85.  ${color85}イミッチ・ピクチャー・ビデオ・マネージャー${gl_kjlan}86.  ${color86}ジェリーフィンメディア管理システム"
 	  echo -e "${gl_kjlan}87.  ${color87}SyncTV は一緒に映画を見るための素晴らしいツールです${gl_kjlan}88.  ${color88}Owncast の自己ホスト型ライブ ストリーミング プラットフォーム"
 	  echo -e "${gl_kjlan}89.  ${color89}FileCodeBox ファイルエクスプレス${gl_kjlan}90.  ${color90}マトリックス分散型チャットプロトコル"
 	  echo -e "${gl_kjlan}-------------------------"
 	  echo -e "${gl_kjlan}91.  ${color91}gitea プライベート コード リポジトリ${gl_kjlan}92.  ${color92}FileBrowser ファイルマネージャー"
-	  echo -e "${gl_kjlan}93.  ${color93}Dufs极简静态文件服务器              ${gl_kjlan}94.  ${color94}Gopeed高速ダウンロードツール"
+	  echo -e "${gl_kjlan}93.  ${color93}Dufs のミニマリスト静的ファイル サーバー${gl_kjlan}94.  ${color94}Gopeed高速ダウンロードツール"
 	  echo -e "${gl_kjlan}95.  ${color95}ペーパーレス文書管理プラットフォーム${gl_kjlan}96.  ${color96}2FAuth セルフホスト型 2 段階認証システム"
 	  echo -e "${gl_kjlan}97.  ${color97}WireGuard ネットワーキング (サーバー)${gl_kjlan}98.  ${color98}WireGuard ネットワーキング (クライアント)"
 	  echo -e "${gl_kjlan}99.  ${color99}DSM Synology 仮想マシン${gl_kjlan}100. ${color100}Syncthing ピアツーピア ファイル同期ツール"
 	  echo -e "${gl_kjlan}-------------------------"
-	  echo -e "${gl_kjlan}101. ${color101}AI動画生成ツール${gl_kjlan}102. ${color102}VoceChat多人在线聊天系统"
+	  echo -e "${gl_kjlan}101. ${color101}AI動画生成ツール${gl_kjlan}102. ${color102}VoceChat 複数人オンライン チャット システム"
 	  echo -e "${gl_kjlan}103. ${color103}Umami ウェブサイト統計ツール${gl_kjlan}104. ${color104}ストリーム 4 層プロキシ転送ツール"
 	  echo -e "${gl_kjlan}105. ${color105}思源ノート${gl_kjlan}106. ${color106}Drawnix オープンソース ホワイトボード ツール"
 	  echo -e "${gl_kjlan}107. ${color107}PanSou ネットワークディスク検索${gl_kjlan}108. ${color108}LangBot チャットボット"
 	  echo -e "${gl_kjlan}109. ${color109}ZFileオンラインネットワークディスク${gl_kjlan}110. ${color110}カラオケのブックマーク管理"
 	  echo -e "${gl_kjlan}-------------------------"
 	  echo -e "${gl_kjlan}111. ${color111}マルチフォーマットファイル変換ツール${gl_kjlan}112. ${color112}Lucky 大規模イントラネット侵入ツール"
-	  echo -e "${gl_kjlan}113. ${color113}Firefox浏览器                       ${gl_kjlan}114. ${color114}OpenClaw ボット管理ツール${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}115. ${color115}ヘルメスロボット管理ツール${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}113. ${color113}Firefoxブラウザ${gl_kjlan}114. ${color114}OpenClaw ボット管理ツール${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}115. ${color115}ヘルメスロボット管理ツール${gl_huang}★${gl_bai}               ${gl_kjlan}116. ${color116}DeepSeek ハーネス管理ツール${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}-------------------------"
 	  echo -e "${gl_kjlan}サードパーティ製アプリケーションのリスト"
   	  echo -e "${gl_kjlan}あなたのアプリをここに表示したいですか?開発者ガイドを確認してください。${gl_huang}https://dev.kejilion.sh/${gl_bai}"
@@ -17980,7 +18862,7 @@ while true; do
 		  local app_text=$(grep "app_text=" "$f" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
 
 		  # インストールステータスを確認します (appno.txt の ID と一致します)。
-		  # 这里假设 appno.txt 中记录的是 base_name (即文件名)
+		  # ここでは、appno.txtに記録されているのはbase_name（つまりファイル名）であると仮定します。
 		  if echo "$app_numbers" | grep -q "^$base_name$"; then
 			  # インストールされている場合: showbase_name - description [インストール済み] (緑色)
 			  echo -e "${gl_kjlan}$base_name${gl_bai} - ${gl_lv}$app_text[インストール済み]${gl_bai}"
@@ -18099,7 +18981,7 @@ while true; do
 
 		local docker_describe="ドメイン名アクセスの追加をサポートしていない Nginx リバース プロキシ ツール パネル。"
 		local docker_url="公式サイト紹介：https://nginxproxymanager.com/"
-		local docker_use="echo \"初始用户名: admin@example.com\""
+		local docker_use="echo \"初期ユーザー名: admin@example.com\""
 		local docker_passwd="echo \"初期パスワード:changeme\""
 		local app_size="1"
 
@@ -18193,7 +19075,7 @@ while true; do
 			check_docker_app
 			check_docker_image_update $docker_name
 			clear
-			echo -e "哪吒监控 $check_docker $update_status"
+			echo -e "ネザモニタリング$check_docker $update_status"
 			echo "オープンソースの軽量で使いやすいサーバー監視および運用保守ツール"
 			echo "公式 Web サイト構築ドキュメント: https://nezha.wiki/guide/dashboard.html"
 			if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "$docker_name"; then
@@ -18202,7 +19084,7 @@ while true; do
 			fi
 			echo ""
 			echo "------------------------"
-			echo "1. 使用"
+			echo "1. 使用する"
 			echo "------------------------"
 			echo "0. 前のメニューに戻る"
 			echo "------------------------"
@@ -18253,7 +19135,7 @@ while true; do
 
 		}
 
-		local docker_describe="qbittorrent离线BT磁力下载服务"
+		local docker_describe="qbittorrent オフライン BT 磁気ダウンロード サービス"
 		local docker_url="公式サイト紹介：https://hub.docker.com/r/linuxserver/qbittorrent"
 		local docker_use="sleep 3"
 		local docker_passwd="docker logs qbittorrent"
@@ -18297,7 +19179,7 @@ while true; do
 			echo "------------------------"
 			echo "1. インストール 2. アップデート 3. アンインストール"
 			echo "------------------------"
-			echo "0. 返回上一级选单"
+			echo "0. 前のメニューに戻る"
 			echo "------------------------"
 			read -e -p "選択内容を入力してください:" choice
 
@@ -18341,7 +19223,7 @@ while true; do
 					clear
 					echo "poste.ioがインストールされました"
 					echo "------------------------"
-					echo "您可以使用以下地址访问poste.io:"
+					echo "次のアドレスを使用して poste.io にアクセスできます。"
 					echo "https://$yuming"
 					echo ""
 
@@ -18421,7 +19303,7 @@ while true; do
 			docker run --name rocketchat --restart=always -p ${docker_port}:3000 --link db --env ROOT_URL=http://localhost --env MONGO_OPLOG_URL=mongodb://db:27017/rs5 -d rocket.chat
 			clear
 			ip_address
-			echo "rocket.chat已经安装完成"
+			echo "rocket.chat がインストールされました"
 			check_docker_app_ip
 		}
 
@@ -18501,7 +19383,7 @@ while true; do
 	  13|cloudreve)
 
 		local app_id="13"
-		local app_name="cloudreve网盘"
+		local app_name="クラウドリーブネットワークディスク"
 		local app_text="Cloudreve は、複数のクラウド ストレージをサポートするネットワーク ディスク システムです。"
 		local app_url="ビデオ紹介: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
 		local docker_name="cloudreve"
@@ -18583,7 +19465,7 @@ while true; do
 		}
 
 
-		local docker_describe="emby是一个主从式架构的媒体服务器软件，可以用来整理服务器上的视频和音频，并将音频和视频流式传输到客户端设备"
+		local docker_describe="emby は、サーバー上でビデオとオーディオを整理し、クライアント デバイスにオーディオとビデオをストリーミングするために使用できるマスター/スレーブ アーキテクチャのメディア サーバー ソフトウェアです。"
 		local docker_url="公式サイト紹介：https://emby.media/"
 		local docker_use=""
 		local docker_passwd=""
@@ -18664,7 +19546,7 @@ while true; do
 
 		}
 
-		local docker_describe="onlyoffice是一款开源的在线office工具，太强大了！"
+		local docker_describe="Onlyoffice はオープンソースのオンライン オフィス ツールで、非常に強力です。"
 		local docker_url="公式サイト紹介：https://www.onlyoffice.com/"
 		local docker_use=""
 		local docker_passwd=""
@@ -18849,7 +19731,7 @@ while true; do
 		docker_rum() {
 
 			read -e -p "ログインユーザー名を設定します:" admin
-			read -e -p "设置登录用户密码: " admin_password
+			read -e -p "ログインユーザーのパスワードを設定します。" admin_password
 			docker run -d \
 			  --name=webtop \
 			  --security-opt seccomp=unconfined \
@@ -18914,7 +19796,7 @@ while true; do
 
 		}
 
-		local docker_describe="QD-Today は、HTTP リクエストのスケジュールされたタスク自動実行フレームワークです。"
+		local docker_describe="QD-Today は HTTP リクエストのスケジュールされたタスク自動実行フレームワークです"
 		local docker_url="公式サイト紹介：https://qd-today.github.io/qd/zh_CN/"
 		local docker_use=""
 		local docker_passwd=""
@@ -18980,7 +19862,7 @@ while true; do
 		}
 
 		local docker_describe="searxng は非公開の検索エンジン サイトです。"
-		local docker_url="官网介绍: https://hub.docker.com/r/alandoyle/searxng"
+		local docker_url="公式サイト紹介：https://hub.docker.com/r/alandoyle/searxng"
 		local docker_use=""
 		local docker_passwd=""
 		local app_size="1"
@@ -19109,8 +19991,8 @@ while true; do
 				stonith404/pingvin-share
 		}
 
-		local docker_describe="Pingvin Share 是一个可自建的文件分享平台，是 WeTransfer 的一个替代品"
-		local docker_url="官网介绍: ${gh_proxy}github.com/stonith404/pingvin-share"
+		local docker_describe="Pingvin Share は自己構築可能なファイル共有プラットフォームであり、WeTransfer の代替品です"
+		local docker_url="公式サイト紹介：${gh_proxy}github.com/stonith404/pingvin-share"
 		local docker_use=""
 		local docker_passwd=""
 		local app_size="1"
@@ -19136,9 +20018,9 @@ while true; do
 		}
 
 
-		local docker_describe="ミニマリストの WeChat モーメント、模倣性の高い WeChat モーメント、あなたの素晴らしい人生を記録します"
+		local docker_describe="ミニマリストの WeChat モーメント、模倣度の高い WeChat モーメント、あなたの素晴らしい人生を記録します"
 		local docker_url="公式サイト紹介：${gh_proxy}github.com/kingwrcy/moments?tab=readme-ov-file"
-		local docker_use="echo \"アカウント: admin パスワード: a123456\""
+		local docker_use="echo 「アカウント: admin パスワード: a123456」"
 		local docker_passwd=""
 		local app_size="1"
 		docker_app
@@ -19190,7 +20072,7 @@ while true; do
 		  ;;
 
 	  38|xiaoya)
-		send_stats "小雅全家桶"
+		send_stats "シャオヤファミリーバケツ"
 		clear
 		install_docker
 		check_disk_space 1
@@ -19373,7 +20255,7 @@ while true; do
 
 		}
 
-		local docker_describe="使用Go实现的GHProxy，用于加速部分地区Github仓库的拉取。"
+		local docker_describe="Go を使用して実装された GHProxy は、一部の領域で Github リポジトリのプルを高速化するために使用されます。"
 		local docker_url="公式サイト紹介：${gh_https_url}github.com/WJQSERVER-STUDIO/ghproxy"
 		local docker_use=""
 		local docker_passwd=""
@@ -19415,7 +20297,7 @@ while true; do
 			docker rmi -f grafana/grafana:latest
 
 			rm -rf /home/docker/monitoring
-			echo "应用已卸载"
+			echo "アプリがアンインストールされました"
 		}
 
 		docker_app_plus
@@ -19439,7 +20321,7 @@ while true; do
 		}
 
 		local docker_describe="これは Prometheus ホスト データ収集コンポーネントです。監視対象ホストにデプロイしてください。"
-		local docker_url="官网介绍: ${gh_https_url}github.com/prometheus/node_exporter"
+		local docker_url="公式サイト紹介：${gh_https_url}github.com/prometheus/node_exporter"
 		local docker_use=""
 		local docker_passwd=""
 		local app_size="1"
@@ -19694,7 +20576,7 @@ while true; do
 		docker_app_uninstall() {
 			cd  /home/docker/new-api/ && docker compose down --rmi all
 			rm -rf /home/docker/new-api
-			echo "应用已卸载"
+			echo "アプリがアンインストールされました"
 		}
 
 		docker_app_plus
@@ -19770,7 +20652,7 @@ while true; do
 	  62|ragflow)
 		local app_id="62"
 		local app_name="RAGFlow ナレッジベース"
-		local app_text="ドキュメントの深い理解に基づくオープンソース RAG (Retrieval Augmented Generation) エンジン"
+		local app_text="ドキュメントの深い理解に基づいたオープンソース RAG (Retrieval Augmented Generation) エンジン"
 		local app_url="公式ウェブサイト:${gh_https_url}github.com/infiniflow/ragflow"
 		local docker_name="ragflow-server"
 		local docker_port="8062"
@@ -19818,7 +20700,7 @@ while true; do
 
 		}
 
-		local docker_describe="OpenWebUI は大規模な言語モデルの Web ページ フレームワークであり、公式の合理化されたバージョンでは、すべての主要なモデルへの API アクセスがサポートされています。"
+		local docker_describe="OpenWebUI は大規模な言語モデルの Web ページ フレームワークであり、公式の簡易バージョンではすべての主要モデルへの API アクセスがサポートされています。"
 		local docker_url="公式サイト紹介：${gh_https_url}github.com/open-webui/open-webui"
 		local docker_use=""
 		local docker_passwd=""
@@ -19836,7 +20718,7 @@ while true; do
 			docker run -d --name it-tools --restart=always -p ${docker_port}:80 corentinth/it-tools:latest
 		}
 
-		local docker_describe="对开发人员和 IT 工作者来说非常有用的工具"
+		local docker_describe="開発者と IT ワーカーにとって非常に便利なツール"
 		local docker_url="公式サイト紹介：${gh_https_url}github.com/CorentinTh/it-tools"
 		local docker_use=""
 		local docker_passwd=""
@@ -20231,7 +21113,7 @@ while true; do
 		local app_id="78"
 		local app_name="PandaWiki"
 		local app_text="PandaWiki は、AI 大型モデルによって駆動されるオープンソースのインテリジェントな文書管理システムです。ポートの展開をカスタマイズしないことを強くお勧めします。"
-		local app_url="官方介绍: ${gh_https_url}github.com/chaitin/PandaWiki"
+		local app_url="公式紹介:${gh_https_url}github.com/chaitin/PandaWiki"
 		local docker_name="panda-wiki-nginx"
 		local docker_port="2443"
 		local app_size="2"
@@ -20287,7 +21169,7 @@ while true; do
 
 		  local app_id="80"
 		  local app_name="リンクワーデンのブックマーク管理"
-		  local app_text="タグ付け、検索、チーム コラボレーションをサポートする、オープン ソースの自己ホスト型ブックマーク管理プラットフォーム。"
+		  local app_text="タグ付け、検索、チームコラボレーションをサポートする、オープンソースの自己ホスト型ブックマーク管理プラットフォーム。"
 		  local app_url="公式サイト：https://linkwarden.app/"
 		  local docker_name="linkwarden-linkwarden-1"
 		  local docker_port="8080"
@@ -20440,7 +21322,7 @@ while true; do
 
 		}
 
-		local docker_describe="高性能AI接口透明代理服务"
+		local docker_describe="高性能AIインターフェース透過プロキシサービス"
 		local docker_url="公式サイト紹介：https://www.gpt-load.com/"
 		local docker_use=""
 		local docker_passwd=""
@@ -20514,7 +21396,7 @@ while true; do
 	  85|immich)
 
 		  local app_id="85"
-		  local app_name="イミッチピクチャービデオマネージャー"
+		  local app_name="イミッチ・ピクチャー・ビデオ・マネージャー"
 		  local app_text="高性能の自己ホスト型写真およびビデオ管理ソリューション。"
 		  local app_url="公式サイト紹介：${gh_https_url}github.com/immich-app/immich"
 		  local docker_name="immich_server"
@@ -20638,7 +21520,7 @@ while true; do
 
 		}
 
-		local docker_describe="オープンソース、無料の自社構築ライブ ブロードキャスト プラットフォーム"
+		local docker_describe="オープンソースの無料の自作ライブ ブロードキャスト プラットフォーム"
 		local docker_url="公式サイト紹介：https://owncast.online"
 		local docker_use="echo \"管理者ページにアクセスするには、アクセス アドレスの後に /admin を続けます\""
 		local docker_passwd="echo \"初期アカウント: admin 初期パスワード: abc123 ログイン後、時間内にログイン パスワードを変更してください\""
@@ -20723,7 +21605,7 @@ while true; do
 
 		}
 
-		local docker_describe="Matrix是一个去中心化的聊天协议"
+		local docker_describe="Matrix は分散型チャット プロトコルです"
 		local docker_url="公式サイト紹介：https://matrix.org/"
 		local docker_use=""
 		local docker_passwd=""
@@ -20830,7 +21712,7 @@ while true; do
 		}
 
 		local docker_describe="シンプルな静的ファイル サーバー、アップロードとダウンロードをサポート"
-		local docker_url="官网介绍: ${gh_https_url}github.com/sigoden/dufs"
+		local docker_url="公式サイト紹介：${gh_https_url}github.com/sigoden/dufs"
 		local docker_use=""
 		local docker_passwd=""
 		local app_size="1"
@@ -20984,7 +21866,7 @@ while true; do
 
 		read -e -p  "ネットワーク内のクライアントの数を入力してください (デフォルトは 5):" COUNT
 		COUNT=${COUNT:-5}
-		read -e -p  "WireGuard ネットワーク セグメントを入力してください (デフォルトは 10.13.13.0)。" NETWORK
+		read -e -p  "WireGuard ネットワーク セグメントを入力してください (デフォルトは 10.13.13.0):" NETWORK
 		NETWORK=${NETWORK:-10.13.13.0}
 
 		PEERS=$(seq -f "wg%02g" 1 "$COUNT" | paste -sd,)
@@ -21061,10 +21943,10 @@ while true; do
 		echo -e "${gl_huang}すべてのクライアント構成コード:${gl_bai}"
 		docker exec wireguard sh -c 'for d in /config/peer_*; do echo "# $(basename $d) "; cat $d/*.conf; echo; done'
 		sleep 2
-		echo -e "${gl_lv}${COUNT}个客户端配置全部输出，使用方法如下：${gl_bai}"
+		echo -e "${gl_lv}${COUNT}各クライアントのすべての出力を構成します。利用方法は以下の通りです。${gl_bai}"
 		echo -e "${gl_lv}1. 携帯電話に wg APP をダウンロードし、上の QR コードをスキャンして、すぐにインターネットに接続します。${gl_bai}"
 		echo -e "${gl_lv}2. Windows 用クライアントをダウンロードし、ネットワークに接続するための構成コードをコピーします。${gl_bai}"
-		echo -e "${gl_lv}3. Linux用脚本部署WG客户端，复制配置代码连接网络。${gl_bai}"
+		echo -e "${gl_lv}3. スクリプトを使用して Linux に WG クライアントを展開し、構成コードをコピーしてネットワークに接続します。${gl_bai}"
 		echo -e "${gl_lv}公式クライアントのダウンロード方法：https://www.wireguard.com/install/${gl_bai}"
 		break_end
 
@@ -21096,7 +21978,7 @@ while true; do
 			# ディレクトリが存在しない場合は作成する
 			mkdir -p "$(dirname "$CONFIG_FILE")"
 
-			echo "请粘贴你的客户端配置，连续按两次回车保存："
+			echo "クライアント設定を貼り付け、Enter キーを 2 回押して保存してください。"
 
 			# 変数を初期化する
 			input=""
@@ -21239,7 +22121,7 @@ while true; do
 	  101|moneyprinterturbo)
 		local app_id="101"
 		local app_name="AI動画生成ツール"
-		local app_text="MoneyPrinterTurbo は、AI ラージモデルを使用して高解像度のショートビデオを合成するツールです"
+		local app_text="MoneyPrinterTurbo は、AI ラージモデルを使用して高解像度のショートビデオを合成するツールです。"
 		local app_url="公式ウェブサイト:${gh_https_url}github.com/harry0703/MoneyPrinterTurbo"
 		local docker_name="moneyprinterturbo"
 		local docker_port="8101"
@@ -21652,6 +22534,10 @@ discourse,yunsou,ahhhhfs,nsgame,gying" \
 	  	  bash <(curl -sL ${gh_proxy}raw.githubusercontent.com/kejilion/sh/main/hermes_manager.sh)
 		  ;;
 
+	  116|deepseek-harness|DeepSeek-Harness|dsh)
+		  bash <(curl -fsSL ${gh_proxy}raw.githubusercontent.com/kejilion/sh/main/deepseek_harness_manager.sh)
+		  ;;
+
 	  b)
 	  	clear
 	  	send_stats "すべてのアプリケーションのバックアップ"
@@ -21752,8 +22638,8 @@ linux_work() {
 	  send_stats "バックエンドワークスペース"
 	  echo -e "バックエンドワークスペース"
 	  echo -e "システムは、バックグラウンドで永続的に実行できるワークスペースを提供し、長期的なタスクを実行するために使用できます。"
-	  echo -e "SSH を切断しても、ワークスペース内のタスクは中断されず、タスクはバックグラウンドで残ります。"
-	  echo -e "${gl_huang}ヒント：${gl_bai}ワークスペースに入ったら、Ctrl+b を使用し、d だけを押してワークスペースを終了します。"
+	  echo -e "SSH を切断しても、ワークスペース内のタスクは中断されず、バックグラウンド タスクは継続されます。"
+	  echo -e "${gl_huang}ヒント：${gl_bai}ワークスペースに入ったら、Ctrl+b を使用し、次に d を単独で押してワークスペースを終了します。"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo "現在存在するワークスペースのリスト"
 	  echo -e "${gl_kjlan}------------------------"
@@ -21764,7 +22650,7 @@ linux_work() {
 	  echo -e "${gl_kjlan}3.   ${gl_bai}作業エリア 3"
 	  echo -e "${gl_kjlan}4.   ${gl_bai}作業エリア 4"
 	  echo -e "${gl_kjlan}5.   ${gl_bai}ワークスペースNo.5"
-	  echo -e "${gl_kjlan}6.   ${gl_bai}6号工作区"
+	  echo -e "${gl_kjlan}6.   ${gl_bai}作業エリア6"
 	  echo -e "${gl_kjlan}7.   ${gl_bai}作業エリア 7"
 	  echo -e "${gl_kjlan}8.   ${gl_bai}作業エリア8"
 	  echo -e "${gl_kjlan}9.   ${gl_bai}ワークスペースNo.9"
@@ -21861,7 +22747,7 @@ linux_work() {
 			  else
 				  local tmux_sshd_status="${gl_hui}閉鎖${gl_bai}"
 			  fi
-			  send_stats "SSH常驻模式 "
+			  send_stats "SSH常駐モード"
 			  echo -e "SSH常駐モード${tmux_sshd_status}"
 			  echo "SSH 接続を開いた後、直接常駐モードに入り、前の動作状態に直接戻ります。"
 			  echo "------------------------"
@@ -21891,7 +22777,7 @@ linux_work() {
 			  ;;
 
 		  22)
-			  read -e -p "请输入你创建或进入的工作区名称，如1001 kj001 work1: " SESSION_NAME
+			  read -e -p "作成または入力したワークスペースの名前を入力してください (1001 kj001 work1 など)。" SESSION_NAME
 			  tmux_run
 			  send_stats "カスタムワークスペース"
 			  ;;
@@ -21932,7 +22818,7 @@ linux_work() {
 
 
 
-# 智能切换镜像源函数
+# インテリジェントスイッチングミラーソース機能
 switch_mirror() {
 	# オプションのパラメータ、デフォルトは false
 	local upgrade_software=${1:-false}
@@ -21997,7 +22883,7 @@ fail2ban_panel() {
 				echo "------------------------"
 				echo "1. 防御プログラムをインストールする"
 				echo "------------------------"
-				echo "2. 查看SSH拦截记录"
+				echo "2. SSH インターセプト記録の表示"
 				echo "3. リアルタイムログ監視"
 				echo "------------------------"
 				echo "4. 基本パラメータ設定（禁止期間/時間枠/リトライ回数）"
@@ -22091,7 +22977,7 @@ net_menu() {
 				else
 					echo "✘ ネットワークカードが存在しません"
 				fi
-				read -erp "Enter を押して続行します..."
+				read -erp "続行するには Enter キーを押してください..."
 				;;
 			2)
 				send_stats "ネットワークカードを無効にする"
@@ -22101,7 +22987,7 @@ net_menu() {
 				else
 					echo "✘ ネットワークカードが存在しません"
 				fi
-				read -erp "Enter を押して続行します..."
+				read -erp "続行するには Enter キーを押してください..."
 				;;
 			3)
 				send_stats "ネットワークカードの詳細を表示する"
@@ -22113,7 +22999,7 @@ net_menu() {
 				else
 					echo "✘ ネットワークカードが存在しません"
 				fi
-				read -erp "Enter を押して続行します..."
+				read -erp "続行するには Enter キーを押してください..."
 				;;
 			4)
 				send_stats "ネットワークカード情報を更新する"
@@ -22128,6 +23014,2969 @@ net_menu() {
 
 
 
+# KPanel system resource protocol start
+KPANEL_SYSTEM_RESOURCE_PROTOCOL_VERSION="3"
+
+kpanel_system_resource_zero_version() {
+	printf '%064d' 0
+}
+
+kpanel_system_resource_emit() {
+	local status="$1"
+	local version="$2"
+	local backup="${3:-}"
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || version="$(kpanel_system_resource_zero_version)"
+	printf 'KPANEL_SYSTEM_RESOURCE_STATUS=%s\n' "$status"
+	printf 'KPANEL_SYSTEM_RESOURCE_VERSION=%s\n' "$version"
+	[ -z "$backup" ] || printf 'KPANEL_SYSTEM_RESOURCE_BACKUP=%s\n' "$backup"
+}
+
+kpanel_system_resource_error() {
+	printf 'エラー: %s\n' "$1" >&2
+}
+
+kpanel_system_resource_valid_version() {
+	[[ "$1" =~ ^[0-9a-f]{64}$ ]]
+}
+
+kpanel_system_resource_single_line() {
+	local value="$1"
+	local maximum="$2"
+	local bytes
+	bytes="$(printf '%s' "$value" | wc -c)" || return 1
+	[ "$bytes" -le "$maximum" ] &&
+		[[ "$value" != *$'\n'* ]] &&
+		[[ "$value" != *$'\r'* ]]
+}
+
+kpanel_system_resource_copy_identity() {
+	local source="$1"
+	local target="$2"
+	local mode owner
+	mode="$(stat -c '%a' "$source" 2>/dev/null)" || return 1
+	owner="$(stat -c '%u:%g' "$source" 2>/dev/null)" || return 1
+	[[ "$mode" =~ ^[0-7]{3,4}$ ]] && [[ "$owner" =~ ^[0-9]+:[0-9]+$ ]] || return 1
+	chown "$owner" "$target" >/dev/null 2>&1 &&
+		chmod "$mode" "$target" >/dev/null 2>&1
+}
+
+kpanel_system_resource_file_within_bounds() {
+	local path="$1"
+	local maximum_bytes="$2"
+	local maximum_lines="$3"
+	local bytes lines
+	bytes="$(wc -c < "$path" 2>/dev/null)" || return 1
+	lines="$(awk 'END {print NR + 0}' "$path" 2>/dev/null)" || return 1
+	[ "$bytes" -le "$maximum_bytes" ] && [ "$lines" -le "$maximum_lines" ]
+}
+
+kpanel_system_resource_hosts_file() {
+	printf '%s\n' "/etc/hosts"
+}
+
+kpanel_system_resource_lock_dir() {
+	printf '%s\n' "/run/kejilion-system-resource"
+}
+
+kpanel_system_resource_lock_owner_uid() {
+	printf '0\n'
+}
+
+kpanel_system_resource_lock_stat_uid() {
+	stat -c '%u' "$1" 2>/dev/null
+}
+
+kpanel_system_resource_lock_stat_mode() {
+	stat -c '%a' "$1" 2>/dev/null
+}
+
+kpanel_system_resource_lock_file() {
+	printf '%s/system-resource.lock\n' "$(kpanel_system_resource_lock_dir)"
+}
+
+kpanel_system_resource_interfaces_dir() {
+	printf '%s\n' "/sys/class/net"
+}
+
+kpanel_system_resource_iptables_rules_file() {
+	printf '%s\n' "/etc/iptables/rules.v4"
+}
+
+kpanel_system_resource_tempdir() {
+	local resource="$1"
+	local directory
+	directory="$(mktemp -d "/tmp/kejilion-system-resource-${resource}.XXXXXX")" || return 1
+	chmod 700 "$directory" || {
+		rm -rf -- "$directory"
+		return 1
+	}
+	printf '%s\n' "$directory"
+}
+
+kpanel_system_resource_state_root() {
+	printf '%s\n' "/var/lib/kejilion-panel"
+}
+
+kpanel_system_resource_path_has_no_symlink() {
+	local path="$1"
+	local remainder current="" component
+	local components=()
+
+	[[ "$path" = /* ]] && [ "$path" != "/" ] || return 1
+	remainder="${path#/}"
+	IFS=/ read -r -a components <<< "$remainder"
+	for component in "${components[@]}"; do
+		[ -n "$component" ] && [ "$component" != "." ] && [ "$component" != ".." ] || return 1
+		current="$current/$component"
+		[ ! -L "$current" ] || return 1
+	done
+}
+
+kpanel_system_resource_lock_path_secure() {
+	local path="$1"
+	local kind="$2"
+	local required_mode="${3:-}"
+	local uid expected_uid mode
+
+	[ ! -L "$path" ] || return 1
+	case "$kind" in
+		directory) [ -d "$path" ] ;;
+		file) [ -f "$path" ] ;;
+		*) return 1 ;;
+	esac || return 1
+	uid="$(kpanel_system_resource_lock_stat_uid "$path")" || return 1
+	expected_uid="$(kpanel_system_resource_lock_owner_uid)" || return 1
+	[[ "$uid" =~ ^[0-9]+$ ]] && [[ "$expected_uid" =~ ^[0-9]+$ ]] &&
+		[ "$uid" = "$expected_uid" ] || return 1
+	mode="$(kpanel_system_resource_lock_stat_mode "$path")" || return 1
+	[[ "$mode" =~ ^[0-7]{3,4}$ ]] || return 1
+	[ "$((8#$mode & 0022))" -eq 0 ] || return 1
+	[ -z "$required_mode" ] || [ "$((8#$mode & 0777))" -eq "$((8#$required_mode))" ]
+}
+
+kpanel_system_resource_prepare_lock_file() {
+	local lock_dir lock_parent lock_file
+
+	lock_dir="$(kpanel_system_resource_lock_dir)" || return 1
+	lock_file="$(kpanel_system_resource_lock_file)" || return 1
+	kpanel_system_resource_single_line "$lock_dir" 1024 || return 1
+	kpanel_system_resource_single_line "$lock_file" 1024 || return 1
+	[[ "$lock_dir" = /* ]] && [ "$lock_file" = "$lock_dir/system-resource.lock" ] || return 1
+	kpanel_system_resource_path_has_no_symlink "$lock_dir" || return 1
+	lock_parent="$(dirname -- "$lock_dir")" || return 1
+	kpanel_system_resource_lock_path_secure "$lock_parent" directory || return 1
+	if [ -e "$lock_dir" ]; then
+		kpanel_system_resource_lock_path_secure "$lock_dir" directory || return 1
+	else
+		(umask 077; mkdir -- "$lock_dir") >/dev/null 2>&1 || return 1
+	fi
+	chown 0:0 "$lock_dir" >/dev/null 2>&1 && chmod 700 "$lock_dir" >/dev/null 2>&1 || return 1
+	kpanel_system_resource_lock_path_secure "$lock_dir" directory 700 || return 1
+	[ ! -L "$lock_file" ] || return 1
+	if [ -e "$lock_file" ]; then
+		kpanel_system_resource_lock_path_secure "$lock_file" file || return 1
+	else
+		(umask 077; set -o noclobber; : > "$lock_file") >/dev/null 2>&1 || {
+			[ -e "$lock_file" ] && [ ! -L "$lock_file" ] || return 1
+		}
+	fi
+	kpanel_system_resource_lock_path_secure "$lock_file" file || return 1
+	chown 0:0 "$lock_file" >/dev/null 2>&1 && chmod 600 "$lock_file" >/dev/null 2>&1 || return 1
+	kpanel_system_resource_lock_path_secure "$lock_file" file 600 || return 1
+	printf '%s\n' "$lock_file"
+}
+
+kpanel_system_resource_secure_directory() {
+	local path="$1"
+	[ ! -L "$path" ] || return 1
+	if [ -e "$path" ]; then
+		[ -d "$path" ] || return 1
+	else
+		mkdir -- "$path" >/dev/null 2>&1 || return 1
+	fi
+	[ -d "$path" ] && [ ! -L "$path" ] || return 1
+	chown 0:0 "$path" >/dev/null 2>&1 && chmod 700 "$path" >/dev/null 2>&1
+}
+
+kpanel_system_resource_prepare_recovery_root() {
+	local state_root path mode
+	state_root="$(kpanel_system_resource_state_root)" || return 1
+	kpanel_system_resource_single_line "$state_root" 1024 || return 1
+	kpanel_system_resource_path_has_no_symlink "$state_root" || return 1
+	if [ -e "$state_root" ]; then
+		[ -d "$state_root" ] && [ ! -L "$state_root" ] || return 1
+	else
+		mkdir -- "$state_root" >/dev/null 2>&1 || return 1
+		chmod 700 "$state_root" >/dev/null 2>&1 || return 1
+	fi
+	chown 0:0 "$state_root" >/dev/null 2>&1 || return 1
+	mode="$(stat -c '%a' "$state_root" 2>/dev/null)" || return 1
+	[[ "$mode" =~ ^[0-7]{3,4}$ ]] || return 1
+	[ "$((8#$mode & 0022))" -eq 0 ] || return 1
+	path="$state_root"
+	for component in system recovery system-resource; do
+		path="$path/$component"
+		kpanel_system_resource_secure_directory "$path" || return 1
+	done
+	printf '%s\n' "$path"
+}
+
+kpanel_system_resource_persist_recovery_snapshot() {
+	local snapshot_dir="$1"
+	local resource="$2"
+	local recovery_root destination timestamp invalid
+
+	[[ "$resource" =~ ^(hosts|cron|firewall|traffic-shutdown|account-management|ssh-defense)$ ]] || return 1
+	[ -d "$snapshot_dir" ] && [ ! -L "$snapshot_dir" ] || return 1
+	invalid="$(find "$snapshot_dir" -mindepth 1 \( -type l -o ! -type f \) -print -quit 2>/dev/null)" || return 1
+	[ -z "$invalid" ] || return 1
+	recovery_root="$(kpanel_system_resource_prepare_recovery_root)" || return 1
+	timestamp="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null)" || return 1
+	[[ "$timestamp" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || return 1
+	destination="$(mktemp -d "$recovery_root/${timestamp}-${resource}.XXXXXX")" || return 1
+	if ! chmod 700 "$destination" >/dev/null 2>&1 ||
+		! cp -a -- "$snapshot_dir/." "$destination/" >/dev/null 2>&1; then
+		rm -rf -- "$destination"
+		return 1
+	fi
+	invalid="$(find "$destination" -mindepth 1 \( -type l -o ! -type f \) -print -quit 2>/dev/null)" || {
+		rm -rf -- "$destination"
+		return 1
+	}
+	if [ -n "$invalid" ] ||
+		! chown -R -- 0:0 "$destination" >/dev/null 2>&1 ||
+		! find "$destination" -type d -exec chmod 700 -- {} + >/dev/null 2>&1 ||
+		! find "$destination" -type f -exec chmod 600 -- {} + >/dev/null 2>&1; then
+		rm -rf -- "$destination"
+		return 1
+	fi
+	rm -rf -- "$snapshot_dir" >/dev/null 2>&1 || true
+	printf '%s\n' "$destination"
+}
+
+kpanel_system_resource_is_ipv4() {
+	local value="$1"
+	local first second third fourth extra octet
+	IFS=. read -r first second third fourth extra <<< "$value"
+	[ -z "$extra" ] || return 1
+	for octet in "$first" "$second" "$third" "$fourth"; do
+		[[ "$octet" =~ ^[0-9]{1,3}$ ]] || return 1
+		[ "$octet" = "0" ] || [[ "$octet" != 0* ]] || return 1
+		[ "$((10#$octet))" -le 255 ] || return 1
+	done
+}
+
+kpanel_system_resource_ipv6_side_count() {
+	local side="$1"
+	local part index count=0
+	local parts=()
+	[ -n "$side" ] || {
+		printf '0\n'
+		return 0
+	}
+	[[ "$side" != :* && "$side" != *: ]] || return 1
+	IFS=: read -r -a parts <<< "$side"
+	for index in "${!parts[@]}"; do
+		part="${parts[$index]}"
+		[ -n "$part" ] || return 1
+		if [[ "$part" == *.* ]]; then
+			[ "$index" -eq "$((${#parts[@]} - 1))" ] || return 1
+			kpanel_system_resource_is_ipv4 "$part" || return 1
+			count=$((count + 2))
+		else
+			[[ "$part" =~ ^[0-9A-Fa-f]{1,4}$ ]] || return 1
+			count=$((count + 1))
+		fi
+	done
+	printf '%s\n' "$count"
+}
+
+kpanel_system_resource_is_ipv6() {
+	local value="$1"
+	local left right left_count right_count total
+	[ -n "$value" ] && [ "${#value}" -le 45 ] &&
+		[[ "$value" == *:* ]] &&
+		[[ "$value" =~ ^[0-9A-Fa-f:.]+$ ]] || return 1
+	if [[ "$value" == *::* ]]; then
+		[[ "${value/::/}" != *::* ]] || return 1
+		left="${value%%::*}"
+		right="${value#*::}"
+		left_count="$(kpanel_system_resource_ipv6_side_count "$left")" || return 1
+		right_count="$(kpanel_system_resource_ipv6_side_count "$right")" || return 1
+		total=$((left_count + right_count))
+		[ "$total" -lt 8 ]
+	else
+		[[ "$value" != :* && "$value" != *: ]] || return 1
+		total="$(kpanel_system_resource_ipv6_side_count "$value")" || return 1
+		[ "$total" -eq 8 ]
+	fi
+}
+
+kpanel_system_resource_is_hostname() {
+	local value="$1"
+	local label
+	local labels=()
+	[ -n "$value" ] && [ "${#value}" -le 253 ] || return 1
+	value="${value%.}"
+	[ -n "$value" ] || return 1
+	IFS=. read -r -a labels <<< "$value"
+	for label in "${labels[@]}"; do
+		[ -n "$label" ] && [ "${#label}" -le 63 ] || return 1
+		[[ "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || return 1
+	done
+}
+
+kpanel_system_resource_is_ipv4_cidr() {
+	local value="$1"
+	local address prefix
+	if [[ "$value" == */* ]]; then
+		[ "${value//[^\/]/}" = "/" ] || return 1
+		address="${value%/*}"
+		prefix="${value##*/}"
+		[[ "$prefix" =~ ^[0-9]{1,2}$ ]] &&
+			{ [ "$prefix" = "0" ] || [[ "$prefix" != 0* ]]; } &&
+			[ "$((10#$prefix))" -le 32 ] || return 1
+	else
+		address="$value"
+	fi
+	kpanel_system_resource_is_ipv4 "$address"
+}
+
+kpanel_system_resource_hosts_version() {
+	local path
+	path="$(kpanel_system_resource_hosts_file)"
+	[ -f "$path" ] && [ ! -L "$path" ] || return 1
+	sha256sum -- "$path" 2>/dev/null | awk '{print $1}'
+}
+
+kpanel_system_resource_cron_capture() {
+	local target="$1"
+	local error_file="$target.error"
+	local rc=0
+	KPANEL_SYSTEM_RESOURCE_CRON_EXISTED=false
+	LC_ALL=C crontab -l > "$target" 2>"$error_file" || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		KPANEL_SYSTEM_RESOURCE_CRON_EXISTED=true
+	elif grep -Fqi 'no crontab for' "$error_file"; then
+		: > "$target" || {
+			rm -f -- "$error_file"
+			return 1
+		}
+	else
+		rm -f -- "$error_file"
+		return 1
+	fi
+	rm -f -- "$error_file"
+	kpanel_system_resource_file_within_bounds "$target" 262144 512
+}
+
+kpanel_system_resource_cron_version() {
+	local temporary version
+	temporary="$(mktemp /tmp/kejilion-system-resource-cron-version.XXXXXX)" || return 1
+	if ! kpanel_system_resource_cron_capture "$temporary"; then
+		rm -f -- "$temporary"
+		return 1
+	fi
+	version="$(sha256sum -- "$temporary" 2>/dev/null | awk '{print $1}')"
+	rm -f -- "$temporary"
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || return 1
+	printf '%s\n' "$version"
+}
+
+kpanel_system_resource_interface_exists() {
+	local name="$1"
+	local root candidate
+	root="$(kpanel_system_resource_interfaces_dir)"
+	[ -d "$root" ] || return 1
+	for candidate in "$root"/*; do
+		[ -e "$candidate" ] || continue
+		[ "$(basename -- "$candidate")" = "$name" ] && return 0
+	done
+	return 1
+}
+
+kpanel_system_resource_interface_version() {
+	local name="$1"
+	local root state mac
+	kpanel_system_resource_interface_exists "$name" || return 1
+	root="$(kpanel_system_resource_interfaces_dir)"
+	state="$(kpanel_system_resource_interface_admin_state "$name")" || return 1
+	mac="$(cat "$root/$name/address" 2>/dev/null)" || return 1
+	printf '%s|%s|%s' "$name" "$state" "$mac" | sha256sum | awk '{print $1}'
+}
+
+kpanel_system_resource_firewall_canonicalize() {
+	local source="$1"
+	local target="$2"
+	local bytes
+
+	[ -f "$source" ] && [ ! -L "$source" ] || return 1
+	bytes="$(wc -c < "$source" 2>/dev/null)" || return 1
+	[ "$bytes" -le 524288 ] || return 1
+	LC_ALL=C awk '
+		{
+			line=$0
+			sub(/\r$/, "", line)
+			if (index(line, "# Generated by iptables-save ") == 1 ||
+				index(line, "# Completed on ") == 1) {
+				next
+			}
+			if (line ~ /^:/) {
+				sub(/ \[[0-9]+:[0-9]+\]$/, " [0:0]", line)
+			}
+			print line
+		}
+	' "$source" > "$target"
+}
+
+kpanel_system_resource_firewall_canonical_equal() {
+	local left="$1"
+	local right="$2"
+	local left_canonical right_canonical result
+
+	left_canonical="$(mktemp /tmp/kejilion-system-resource-firewall-left.XXXXXX)" || return 2
+	right_canonical="$(mktemp /tmp/kejilion-system-resource-firewall-right.XXXXXX)" || {
+		rm -f -- "$left_canonical"
+		return 2
+	}
+	if ! kpanel_system_resource_firewall_canonicalize "$left" "$left_canonical" ||
+		! kpanel_system_resource_firewall_canonicalize "$right" "$right_canonical"; then
+		rm -f -- "$left_canonical" "$right_canonical"
+		return 2
+	fi
+	if cmp -s -- "$left_canonical" "$right_canonical"; then
+		result=0
+	else
+		result=$?
+	fi
+	rm -f -- "$left_canonical" "$right_canonical"
+	case "$result" in
+		0|1) return "$result" ;;
+		*) return 2 ;;
+	esac
+}
+
+kpanel_system_resource_firewall_version() {
+	local raw canonical version
+	raw="$(mktemp /tmp/kejilion-system-resource-firewall-version-raw.XXXXXX)" || return 1
+	canonical="$(mktemp /tmp/kejilion-system-resource-firewall-version-canonical.XXXXXX)" || {
+		rm -f -- "$raw"
+		return 1
+	}
+	if ! kpanel_system_resource_firewall_capture "$raw" ||
+		! kpanel_system_resource_firewall_canonicalize "$raw" "$canonical"; then
+		rm -f -- "$raw" "$canonical"
+		return 1
+	fi
+	version="$(sha256sum -- "$canonical" 2>/dev/null | awk '{print $1}')"
+	rm -f -- "$raw" "$canonical"
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || return 1
+	printf '%s\n' "$version"
+}
+
+kpanel_system_resource_firewall_capture() {
+	local target="$1"
+	local bytes
+	iptables-save > "$target" 2>/dev/null || return 1
+	bytes="$(wc -c < "$target" 2>/dev/null)" || return 1
+	[ "$bytes" -le 524288 ]
+}
+
+kpanel_system_resource_best_version() {
+	local resource="$1"
+	local name="${2:-}"
+	local version=""
+	case "$resource" in
+		hosts) version="$(kpanel_system_resource_hosts_version 2>/dev/null || true)" ;;
+		cron) version="$(kpanel_system_resource_cron_version 2>/dev/null || true)" ;;
+		network-interface)
+			[ -z "$name" ] || version="$(kpanel_system_resource_interface_version "$name" 2>/dev/null || true)"
+			;;
+		firewall) version="$(kpanel_system_resource_firewall_version 2>/dev/null || true)" ;;
+	esac
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || version="$(kpanel_system_resource_zero_version)"
+	printf '%s\n' "$version"
+}
+
+kpanel_system_resource_check_expected() {
+	local resource="$1"
+	local expected="$2"
+	local name="${3:-}"
+	local current
+	kpanel_system_resource_valid_version "$expected" || {
+		kpanel_system_resource_error "ExpectedResourceVersion は 64 ビットの小文字 16 進数である必要があります"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version "$resource" "$name")"
+		return 2
+	}
+	case "$resource" in
+		hosts) current="$(kpanel_system_resource_hosts_version 2>/dev/null)" ;;
+		cron) current="$(kpanel_system_resource_cron_version 2>/dev/null)" ;;
+		network-interface) current="$(kpanel_system_resource_interface_version "$name" 2>/dev/null)" ;;
+		firewall) current="$(kpanel_system_resource_firewall_version 2>/dev/null)" ;;
+		*) return 2 ;;
+	esac || {
+		kpanel_system_resource_error "現在のリソースのバージョンを読み取ることができません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 1
+	}
+	if [ "$current" != "$expected" ]; then
+		kpanel_system_resource_error "リソースのバージョンが変更されました。更新して再試行してください。"
+		kpanel_system_resource_emit conflict "$current"
+		return 2
+	fi
+	KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION="$current"
+}
+
+kpanel_system_resource_require_platform() {
+	local command_name
+	if [ "${KJ_SYSTEM_RESOURCE_NONINTERACTIVE:-}" != "1" ]; then
+		kpanel_system_resource_error "KPanel システムリソースプロトコル環境が有効になっていません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	fi
+	if [ "$EUID" -ne 0 ]; then
+		kpanel_system_resource_error "KPanel システムリソースプロトコルは root として実行する必要があります"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	fi
+	if [ "$(uname -s 2>/dev/null)" != "Linux" ]; then
+		kpanel_system_resource_error "KPanel システムリソースプロトコルは Linux のみをサポートします"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	fi
+	for command_name in sha256sum mktemp flock find date; do
+		command -v "$command_name" >/dev/null 2>&1 || {
+			kpanel_system_resource_error "必要なコマンドが欠落しています:$command_name"
+			kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+			return 2
+		}
+	done
+}
+
+kpanel_system_resource_hosts_build_line() {
+	local address="$1"
+	local hostnames_csv="$2"
+	local comment="$3"
+	local hostname joined
+	local hostnames=()
+
+	kpanel_system_resource_is_ipv4 "$address" ||
+		kpanel_system_resource_is_ipv6 "$address" || return 1
+	kpanel_system_resource_single_line "$hostnames_csv" 1024 &&
+		[ -n "$hostnames_csv" ] || return 1
+	[[ "$hostnames_csv" != ,* && "$hostnames_csv" != *, && "$hostnames_csv" != *,,* ]] || return 1
+	IFS=, read -r -a hostnames <<< "$hostnames_csv"
+	[ "${#hostnames[@]}" -ge 1 ] && [ "${#hostnames[@]}" -le 16 ] || return 1
+	for hostname in "${hostnames[@]}"; do
+		kpanel_system_resource_is_hostname "$hostname" || return 1
+	done
+	kpanel_system_resource_single_line "$comment" 256 || return 1
+	joined="$(IFS=' '; printf '%s' "${hostnames[*]}")"
+	KPANEL_SYSTEM_RESOURCE_HOSTS_LINE="$address"$'\t'"$joined"
+	[ -z "$comment" ] ||
+		KPANEL_SYSTEM_RESOURCE_HOSTS_LINE="$KPANEL_SYSTEM_RESOURCE_HOSTS_LINE # $comment"
+}
+
+kpanel_system_resource_restore_hosts() {
+	local path="$1"
+	local backup="$2"
+	local expected_version="$3"
+	local current
+	current="$(kpanel_system_resource_hosts_version 2>/dev/null || true)"
+	[ "$current" = "$expected_version" ] && return 0
+	cp -p -- "$backup" "$path" >/dev/null 2>&1 || return 1
+	current="$(kpanel_system_resource_hosts_version 2>/dev/null || true)"
+	[ "$current" = "$expected_version" ]
+}
+
+kpanel_system_resource_hosts_failure() {
+	local path="$1"
+	local backup="$2"
+	local snapshot_dir="$3"
+	local original_version="$4"
+	local message="$5"
+	local version recovery_path
+
+	kpanel_system_resource_error "$message"
+	if kpanel_system_resource_restore_hosts "$path" "$backup" "$original_version"; then
+		version="$(kpanel_system_resource_best_version hosts)"
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_emit failed "$version"
+	else
+		version="$(kpanel_system_resource_best_version hosts)"
+		kpanel_system_resource_error "ホストのロールバックが失敗したため、手動での回復が必要です"
+		if recovery_path="$(kpanel_system_resource_persist_recovery_snapshot "$snapshot_dir" hosts)"; then
+			kpanel_system_resource_emit rollback-failed "$version" "$recovery_path"
+		else
+			kpanel_system_resource_error "ホストに障害が発生しました。スナップショットの永続化に失敗しました。ホストに表示されるバックアップ パスが生成されませんでした。"
+			kpanel_system_resource_emit rollback-failed "$version"
+		fi
+	fi
+	return 1
+}
+
+kpanel_system_resource_hosts_action() {
+	local action="$1"
+	shift
+	local expected path line line_number snapshot_dir backup desired desired_version current_line
+	local index=0 total_lines
+	local address hostnames_csv comment
+	local hosts_trailing_newline=true
+
+	path="$(kpanel_system_resource_hosts_file)"
+	[ -f "$path" ] && [ ! -L "$path" ] || {
+		kpanel_system_resource_error "安全に管理できるホスト ファイルが見つかりません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	}
+	kpanel_system_resource_file_within_bounds "$path" 262144 1024 || {
+		kpanel_system_resource_error "ホストが 256KiB または 1024 行のプロトコル制限を超えています"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version hosts)"
+		return 2
+	}
+	case "$action" in
+		add)
+			[ "$#" -eq 4 ] || {
+				kpanel_system_resource_error "ホストの追加には予期される、アドレス、ホスト名CSV、コメントが必要です"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version hosts)"
+				return 2
+			}
+			expected="$1"
+			address="$2"
+			hostnames_csv="$3"
+			comment="$4"
+			kpanel_system_resource_hosts_build_line "$address" "$hostnames_csv" "$comment" || {
+				kpanel_system_resource_error "無効なホスト アドレス、ホスト名、またはコメント"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version hosts)"
+				return 2
+			}
+			line="$KPANEL_SYSTEM_RESOURCE_HOSTS_LINE"
+			;;
+		delete)
+			[ "$#" -eq 2 ] || {
+				kpanel_system_resource_error "ホストの削除には予期される行が必要です"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version hosts)"
+				return 2
+			}
+			expected="$1"
+			line_number="$2"
+			[[ "$line_number" =~ ^[0-9]{1,4}$ ]] &&
+				[ "$((10#$line_number))" -ge 1 ] &&
+				[ "$((10#$line_number))" -le 1024 ] || {
+				kpanel_system_resource_error "ホストの行番号は 1 ～ 1024 である必要があります"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version hosts)"
+				return 2
+			}
+			line_number=$((10#$line_number))
+			;;
+		*)
+			kpanel_system_resource_error "サポートされていないホストのアクション"
+			kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version hosts)"
+			return 2
+			;;
+	esac
+
+	kpanel_system_resource_check_expected hosts "$expected" || return $?
+	if [ "$action" = "add" ] && grep -Fqx -- "$line" "$path"; then
+		kpanel_system_resource_emit unchanged "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 0
+	fi
+	if [ "$action" = "delete" ]; then
+		total_lines="$(awk 'END {print NR + 0}' "$path")"
+		if [ "$line_number" -gt "$total_lines" ]; then
+			kpanel_system_resource_error "ホストの行番号が現在のファイル範囲を超えています"
+			kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+			return 2
+		fi
+		if [ -s "$path" ] && [ "$(tail -c 1 "$path" | wc -l)" -eq 0 ]; then
+			hosts_trailing_newline=false
+		fi
+	fi
+
+	snapshot_dir="$(kpanel_system_resource_tempdir hosts)" || {
+		kpanel_system_resource_error "ホストのトランザクション ディレクトリを作成できません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	}
+	backup="$snapshot_dir/hosts.backup"
+	cp -p -- "$path" "$backup" >/dev/null 2>&1 || {
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_error "ホストをバックアップできません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	}
+	desired="$(mktemp "$(dirname -- "$path")/.hosts.kpanel.XXXXXX")" || {
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_error "ホストの一時ファイルを作成できません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	}
+
+	if [ "$action" = "add" ]; then
+		cp -- "$path" "$desired" >/dev/null 2>&1 || {
+			rm -f -- "$desired"
+			kpanel_system_resource_hosts_failure "$path" "$backup" "$snapshot_dir" "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION" "ホストをコピーできません"
+			return $?
+		}
+		if [ -s "$desired" ] && [ "$(tail -c 1 "$desired" | wc -l)" -eq 0 ]; then
+			printf '\n' >> "$desired" || {
+				rm -f -- "$desired"
+				kpanel_system_resource_hosts_failure "$path" "$backup" "$snapshot_dir" "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION" "ホストを生成できません"
+				return $?
+			}
+		fi
+		printf '%s\n' "$line" >> "$desired" || {
+			rm -f -- "$desired"
+			kpanel_system_resource_hosts_failure "$path" "$backup" "$snapshot_dir" "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION" "ホストに書き込めません"
+			return $?
+		}
+	else
+		: > "$desired" || {
+			rm -f -- "$desired"
+			kpanel_system_resource_hosts_failure "$path" "$backup" "$snapshot_dir" "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION" "ホストを生成できません"
+			return $?
+		}
+		while IFS= read -r current_line || [ -n "$current_line" ]; do
+			index=$((index + 1))
+			if [ "$index" -eq "$line_number" ]; then
+				continue
+			fi
+			if [ "$index" -eq "$total_lines" ] && [ "$hosts_trailing_newline" = false ]; then
+				printf '%s' "$current_line" >> "$desired"
+			else
+				printf '%s\n' "$current_line" >> "$desired"
+			fi || {
+				rm -f -- "$desired"
+				kpanel_system_resource_hosts_failure "$path" "$backup" "$snapshot_dir" "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION" "ホストを上書きできません"
+				return $?
+			}
+		done < "$path"
+	fi
+	kpanel_system_resource_file_within_bounds "$desired" 262144 1024 || {
+		rm -f -- "$desired"
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_error "変更されたホストが 256KiB または 1024 行のプロトコル制限を超えています"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 2
+	}
+
+	kpanel_system_resource_copy_identity "$path" "$desired" || {
+		rm -f -- "$desired"
+		kpanel_system_resource_hosts_failure "$path" "$backup" "$snapshot_dir" "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION" "ホストの権限または所有権を保存できません"
+		return $?
+	}
+	desired_version="$(sha256sum -- "$desired" 2>/dev/null | awk '{print $1}')"
+	if ! kpanel_system_resource_valid_version "$desired_version"; then
+		rm -f -- "$desired"
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_error "変更されたホストのバージョンを計算できません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	fi
+	if ! mv -f -- "$desired" "$path" >/dev/null 2>&1 ||
+		[ "$(kpanel_system_resource_hosts_version 2>/dev/null)" != "$desired_version" ]; then
+		rm -f -- "$desired"
+		kpanel_system_resource_hosts_failure "$path" "$backup" "$snapshot_dir" "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION" "ホストのアトミック書き込みまたはリードバック検証が失敗しました"
+		return $?
+	fi
+	rm -rf -- "$snapshot_dir"
+	kpanel_system_resource_emit applied "$desired_version"
+}
+
+kpanel_system_resource_cron_number_in_range() {
+	local value="$1"
+	local minimum="$2"
+	local maximum="$3"
+	[[ "$value" =~ ^[0-9]{1,3}$ ]] &&
+		[ "$((10#$value))" -ge "$minimum" ] &&
+		[ "$((10#$value))" -le "$maximum" ]
+}
+
+kpanel_system_resource_cron_value_in_range() {
+	local value="$1"
+	local minimum="$2"
+	local maximum="$3"
+	local kind="$4"
+	local numeric=""
+
+	if [[ "$value" =~ ^[0-9]{1,3}$ ]]; then
+		numeric=$((10#$value))
+	else
+		case "$kind:${value^^}" in
+			month:JAN) numeric=1 ;; month:FEB) numeric=2 ;; month:MAR) numeric=3 ;;
+			month:APR) numeric=4 ;; month:MAY) numeric=5 ;; month:JUN) numeric=6 ;;
+			month:JUL) numeric=7 ;; month:AUG) numeric=8 ;; month:SEP) numeric=9 ;;
+			month:OCT) numeric=10 ;; month:NOV) numeric=11 ;; month:DEC) numeric=12 ;;
+			weekday:SUN) numeric=0 ;; weekday:MON) numeric=1 ;; weekday:TUE) numeric=2 ;;
+			weekday:WED) numeric=3 ;; weekday:THU) numeric=4 ;; weekday:FRI) numeric=5 ;;
+			weekday:SAT) numeric=6 ;;
+			*) return 1 ;;
+		esac
+	fi
+	[ "$numeric" -ge "$minimum" ] && [ "$numeric" -le "$maximum" ] || return 1
+	KPANEL_SYSTEM_RESOURCE_CRON_NUMERIC_VALUE="$numeric"
+}
+
+kpanel_system_resource_cron_field() {
+	local field="$1"
+	local minimum="$2"
+	local maximum="$3"
+	local kind="$4"
+	local item base step start end start_numeric end_numeric
+	local items=()
+
+	IFS=, read -r -a items <<< "$field"
+	[ "${#items[@]}" -ge 1 ] || return 1
+	for item in "${items[@]}"; do
+		[ -n "$item" ] || return 1
+		base="$item"
+		if [[ "$item" == */* ]]; then
+			base="${item%%/*}"
+			step="${item#*/}"
+			[[ "$step" != */* ]] &&
+				kpanel_system_resource_cron_number_in_range "$step" 1 "$maximum" || return 1
+		fi
+		if [ "$base" = "*" ]; then
+			continue
+		elif [[ "$base" == *-* ]]; then
+			start="${base%%-*}"
+			end="${base#*-}"
+			[[ "$end" != *-* ]] &&
+				kpanel_system_resource_cron_value_in_range "$start" "$minimum" "$maximum" "$kind" || return 1
+			start_numeric="$KPANEL_SYSTEM_RESOURCE_CRON_NUMERIC_VALUE"
+			kpanel_system_resource_cron_value_in_range "$end" "$minimum" "$maximum" "$kind" || return 1
+			end_numeric="$KPANEL_SYSTEM_RESOURCE_CRON_NUMERIC_VALUE"
+			[ "$start_numeric" -le "$end_numeric" ] || return 1
+		else
+			kpanel_system_resource_cron_value_in_range "$base" "$minimum" "$maximum" "$kind" || return 1
+		fi
+	done
+}
+
+kpanel_system_resource_cron_expression() {
+	local expression="$1"
+	local fields=()
+
+	kpanel_system_resource_single_line "$expression" 128 && [ -n "$expression" ] || return 1
+	case "$expression" in
+		@reboot|@yearly|@annually|@monthly|@weekly|@daily|@midnight|@hourly)
+			KPANEL_SYSTEM_RESOURCE_CRON_EXPRESSION="$expression"
+			return 0
+			;;
+	esac
+	read -r -a fields <<< "$expression"
+	[ "${#fields[@]}" -eq 5 ] || return 1
+	kpanel_system_resource_cron_field "${fields[0]}" 0 59 numeric &&
+		kpanel_system_resource_cron_field "${fields[1]}" 0 23 numeric &&
+		kpanel_system_resource_cron_field "${fields[2]}" 1 31 numeric &&
+		kpanel_system_resource_cron_field "${fields[3]}" 1 12 month &&
+		kpanel_system_resource_cron_field "${fields[4]}" 0 7 weekday || return 1
+	KPANEL_SYSTEM_RESOURCE_CRON_EXPRESSION="${fields[*]}"
+}
+
+kpanel_system_resource_cron_read_command() {
+	local frame bytes line_feeds command_value
+	KPANEL_SYSTEM_RESOURCE_CRON_COMMAND=""
+	KPANEL_SYSTEM_RESOURCE_CRON_COMMAND_ERROR=operation
+	frame="$(mktemp /tmp/kejilion-system-resource-cron-command.XXXXXX)" || return 1
+	chmod 600 "$frame" >/dev/null 2>&1 || {
+		rm -f -- "$frame"
+		return 1
+	}
+	if ! head -c 2050 > "$frame" 2>/dev/null; then
+		rm -f -- "$frame"
+		return 1
+	fi
+	bytes="$(wc -c < "$frame" 2>/dev/null)" || {
+		rm -f -- "$frame"
+		return 1
+	}
+	KPANEL_SYSTEM_RESOURCE_CRON_COMMAND_ERROR=invalid
+	if [ "$bytes" -lt 1 ] || [ "$bytes" -gt 2049 ] ||
+		! LC_ALL=C tr -d '\000' < "$frame" | cmp -s - "$frame" ||
+		LC_ALL=C grep -q $'\r' "$frame"; then
+		rm -f -- "$frame"
+		return 1
+	fi
+	line_feeds="$(LC_ALL=C tr -cd '\n' < "$frame" | wc -c)" || {
+		rm -f -- "$frame"
+		KPANEL_SYSTEM_RESOURCE_CRON_COMMAND_ERROR=operation
+		return 1
+	}
+	if [ "$line_feeds" -ne 1 ] || [ "$(tail -c 1 "$frame" | wc -l)" -ne 1 ]; then
+		rm -f -- "$frame"
+		return 1
+	fi
+	IFS= read -r command_value < "$frame" || {
+		rm -f -- "$frame"
+		return 1
+	}
+	rm -f -- "$frame"
+	KPANEL_SYSTEM_RESOURCE_CRON_COMMAND="$command_value"
+	KPANEL_SYSTEM_RESOURCE_CRON_COMMAND_ERROR=""
+}
+
+kpanel_system_resource_cron_contains_line() {
+	local path="$1"
+	local expected_line="$2"
+	local current_line
+	while IFS= read -r current_line || [ -n "$current_line" ]; do
+		[ "$current_line" = "$expected_line" ] && return 0
+	done < "$path"
+	return 1
+}
+
+kpanel_system_resource_cron_restore() {
+	local backup="$1"
+	local existed="$2"
+	local verify="$3"
+
+	if [ "$existed" = true ]; then
+		crontab "$backup" >/dev/null 2>&1 || return 1
+	else
+		crontab -r >/dev/null 2>&1 || true
+	fi
+	kpanel_system_resource_cron_capture "$verify" || return 1
+	cmp -s -- "$backup" "$verify"
+}
+
+kpanel_system_resource_cron_failure() {
+	local snapshot_dir="$1"
+	local backup="$2"
+	local existed="$3"
+	local message="$4"
+	local verify="$snapshot_dir/rollback.verify"
+	local version recovery_path
+
+	kpanel_system_resource_error "$message"
+	if kpanel_system_resource_cron_restore "$backup" "$existed" "$verify"; then
+		version="$(kpanel_system_resource_best_version cron)"
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_emit failed "$version"
+	else
+		version="$(kpanel_system_resource_best_version cron)"
+		kpanel_system_resource_error "Crontab のロールバックに失敗したため、手動で回復する必要があります"
+		if recovery_path="$(kpanel_system_resource_persist_recovery_snapshot "$snapshot_dir" cron)"; then
+			kpanel_system_resource_emit rollback-failed "$version" "$recovery_path"
+		else
+			kpanel_system_resource_error "crontab が失敗しました スナップショットの永続化が失敗しました、ホストに表示されるバックアップ パスが生成されませんでした"
+			kpanel_system_resource_emit rollback-failed "$version"
+		fi
+	fi
+	return 1
+}
+
+kpanel_system_resource_cron_action() {
+	local action="$1"
+	shift
+	local expected line_number expression command_source command_value trimmed_command new_line snapshot_dir backup desired verify
+	local cron_existed current_line index=0 total_lines
+	local command_read_rc
+
+	command -v crontab >/dev/null 2>&1 || {
+		kpanel_system_resource_error "crontab コマンドがありません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	}
+	case "$action" in
+		add)
+			[ "$#" -eq 3 ] || {
+				kpanel_system_resource_error "cron 追加には、expected、expression、--command-stdin が必要です"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version cron)"
+				return 2
+			}
+			expected="$1"
+			expression="$2"
+			command_source="$3"
+			;;
+		update)
+			[ "$#" -eq 4 ] || {
+				kpanel_system_resource_error "cron 更新には、予期される、行、式、--command-stdin が必要です"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version cron)"
+				return 2
+			}
+			expected="$1"
+			line_number="$2"
+			expression="$3"
+			command_source="$4"
+			[[ "$line_number" =~ ^[0-9]{1,3}$ ]] &&
+				[ "$((10#$line_number))" -ge 1 ] &&
+				[ "$((10#$line_number))" -le 512 ] || {
+				kpanel_system_resource_error "cron 行番号は 1 ～ 512 である必要があります"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version cron)"
+				return 2
+			}
+			line_number=$((10#$line_number))
+			;;
+		delete)
+			[ "$#" -eq 2 ] || {
+				kpanel_system_resource_error "cron 削除には予期される行が必要です"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version cron)"
+				return 2
+			}
+			expected="$1"
+			line_number="$2"
+			[[ "$line_number" =~ ^[0-9]{1,3}$ ]] &&
+				[ "$((10#$line_number))" -ge 1 ] &&
+				[ "$((10#$line_number))" -le 512 ] || {
+				kpanel_system_resource_error "cron 行番号は 1 ～ 512 である必要があります"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version cron)"
+				return 2
+			}
+			line_number=$((10#$line_number))
+			;;
+		*)
+			kpanel_system_resource_error "サポートされていない cron アクション"
+			kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version cron)"
+			return 2
+			;;
+	esac
+
+	if [ "$action" != "delete" ]; then
+		[ "$command_source" = "--command-stdin" ] &&
+			kpanel_system_resource_cron_expression "$expression" || {
+			kpanel_system_resource_error "cron式またはコマンド入力方法が無効です"
+			kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version cron)"
+			return 2
+		}
+	fi
+	kpanel_system_resource_check_expected cron "$expected" || return $?
+	if [ "$action" != "delete" ]; then
+		kpanel_system_resource_cron_read_command
+		command_read_rc=$?
+		if [ "$command_read_rc" -ne 0 ]; then
+			if [ "$KPANEL_SYSTEM_RESOURCE_CRON_COMMAND_ERROR" = invalid ]; then
+				kpanel_system_resource_error "cron コマンドの標準入力フレームが無効です"
+				kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+				return 2
+			fi
+			kpanel_system_resource_error "cron コマンドの標準入力フレームを安全に読み取ることができません"
+			kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+			return 1
+		fi
+		command_value="$KPANEL_SYSTEM_RESOURCE_CRON_COMMAND"
+		trimmed_command="$command_value"
+		trimmed_command="${trimmed_command#"${trimmed_command%%[![:space:]]*}"}"
+		trimmed_command="${trimmed_command%"${trimmed_command##*[![:space:]]}"}"
+		[ -n "$trimmed_command" ] || {
+			kpanel_system_resource_error "cron コマンドの標準入力フレームが無効です"
+			kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+			return 2
+		}
+		new_line="$KPANEL_SYSTEM_RESOURCE_CRON_EXPRESSION $command_value"
+	fi
+
+	snapshot_dir="$(kpanel_system_resource_tempdir cron)" || {
+		kpanel_system_resource_error "cron トランザクション ディレクトリを作成できません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	}
+	backup="$snapshot_dir/crontab.backup"
+	kpanel_system_resource_cron_capture "$backup" || {
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_error "現在の crontab を読み取れません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	}
+	cron_existed="$KPANEL_SYSTEM_RESOURCE_CRON_EXISTED"
+
+	if [ "$action" = "add" ] && kpanel_system_resource_cron_contains_line "$backup" "$new_line"; then
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_emit unchanged "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 0
+	fi
+	if [ "$action" != "add" ]; then
+		total_lines="$(awk 'END {print NR + 0}' "$backup")"
+		if [ "$line_number" -gt "$total_lines" ]; then
+			rm -rf -- "$snapshot_dir"
+			kpanel_system_resource_error "cron 行番号が現在の crontab 範囲を超えています"
+			kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+			return 2
+		fi
+	fi
+
+	desired="$snapshot_dir/crontab.desired"
+	if [ "$action" = "add" ]; then
+		cp -- "$backup" "$desired" >/dev/null 2>&1 || {
+			rm -rf -- "$snapshot_dir"
+			kpanel_system_resource_error "現在の crontab をコピーできません"
+			kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+			return 1
+		}
+		if [ -s "$desired" ] && [ "$(tail -c 1 "$desired" | wc -l)" -eq 0 ]; then
+			printf '\n' >> "$desired" || {
+				rm -rf -- "$snapshot_dir"
+				kpanel_system_resource_error "crontabを生成できません"
+				kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+				return 1
+			}
+		fi
+		builtin printf '%s\n' "$new_line" >> "$desired" || {
+			kpanel_system_resource_cron_failure "$snapshot_dir" "$backup" "$cron_existed" "crontabを生成できません"
+			return $?
+		}
+	else
+		: > "$desired" || {
+			rm -rf -- "$snapshot_dir"
+			kpanel_system_resource_error "crontab ターゲット ファイルを作成できません"
+			kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+			return 1
+		}
+		while IFS= read -r current_line || [ -n "$current_line" ]; do
+			index=$((index + 1))
+			if [ "$index" -eq "$line_number" ]; then
+				if [ "$action" != "delete" ] && ! builtin printf '%s\n' "$new_line" >> "$desired"; then
+					rm -rf -- "$snapshot_dir"
+					kpanel_system_resource_error "crontabを生成できません"
+					kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+					return 1
+				fi
+				continue
+			fi
+			printf '%s\n' "$current_line" >> "$desired" || {
+				kpanel_system_resource_cron_failure "$snapshot_dir" "$backup" "$cron_existed" "crontabを生成できません"
+				return $?
+			}
+		done < "$backup"
+	fi
+	if ! kpanel_system_resource_file_within_bounds "$desired" 262144 512; then
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_error "変更された crontab がプロトコル制限の 256KiB または 512 行を超えています"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 2
+	fi
+	if cmp -s -- "$backup" "$desired"; then
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_emit unchanged "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 0
+	fi
+
+	if ! crontab "$desired" >/dev/null 2>&1; then
+		kpanel_system_resource_cron_failure "$snapshot_dir" "$backup" "$cron_existed" "crontabのインストールに失敗しました"
+		return $?
+	fi
+	verify="$snapshot_dir/crontab.verify"
+	if ! kpanel_system_resource_cron_capture "$verify"; then
+		kpanel_system_resource_cron_failure "$snapshot_dir" "$backup" "$cron_existed" "crontabのリードバックに失敗しました"
+		return $?
+	fi
+	if ! cmp -s -- "$desired" "$verify"; then
+		kpanel_system_resource_cron_failure "$snapshot_dir" "$backup" "$cron_existed" "crontab リードバック検証に失敗しました"
+		return $?
+	fi
+	local applied_version
+	applied_version="$(sha256sum -- "$verify" 2>/dev/null | awk '{print $1}')"
+	if ! kpanel_system_resource_valid_version "$applied_version"; then
+		kpanel_system_resource_cron_failure "$snapshot_dir" "$backup" "$cron_existed" "crontab のバージョンを計算できません"
+		return $?
+	fi
+	rm -rf -- "$snapshot_dir"
+	kpanel_system_resource_emit applied "$applied_version"
+}
+
+kpanel_system_resource_interface_admin_state() {
+	local name="$1"
+	local root flags numeric
+	root="$(kpanel_system_resource_interfaces_dir)"
+	flags="$(cat "$root/$name/flags" 2>/dev/null)" || return 1
+	[[ "$flags" =~ ^0x[0-9A-Fa-f]+$ ]] || return 1
+	numeric=$((flags))
+	if [ "$((numeric & 1))" -eq 1 ]; then
+		printf 'up\n'
+	else
+		printf 'down\n'
+	fi
+}
+
+kpanel_system_resource_interface_failure() {
+	local name="$1"
+	local old_state="$2"
+	local message="$3"
+	local current_state="" version attempt
+
+	kpanel_system_resource_error "$message"
+	current_state="$(kpanel_system_resource_interface_admin_state "$name" 2>/dev/null || true)"
+	if [ "$current_state" != "$old_state" ]; then
+		ip link set dev "$name" "$old_state" >/dev/null 2>&1 || true
+		for attempt in 1 2 3 4 5; do
+			current_state="$(kpanel_system_resource_interface_admin_state "$name" 2>/dev/null || true)"
+			[ "$current_state" = "$old_state" ] && break
+			sleep 0.1
+		done
+	fi
+	version="$(kpanel_system_resource_best_version network-interface "$name")"
+	if [ "$current_state" = "$old_state" ]; then
+		kpanel_system_resource_emit failed "$version"
+	else
+		kpanel_system_resource_error "ネットワーク カード ステータスのロールバックに失敗したため、手動で回復する必要があります。"
+		kpanel_system_resource_emit rollback-failed "$version"
+	fi
+	return 1
+}
+
+kpanel_system_resource_interface_action() {
+	local action="$1"
+	shift
+	local expected name desired old_state current_state version attempt
+
+	[ "$action" = "state" ] || {
+		kpanel_system_resource_error "サポートされていないネットワーク インターフェイス アクション"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	}
+	[ "$#" -eq 3 ] || {
+		kpanel_system_resource_error "ネットワーク インターフェイスの状態には、expected、name、up|down が必要です"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	}
+	expected="$1"
+	name="$2"
+	desired="$3"
+	[ "${#name}" -ge 1 ] && [ "${#name}" -le 15 ] &&
+		kpanel_system_resource_single_line "$name" 15 &&
+		kpanel_system_resource_interface_exists "$name" || {
+		kpanel_system_resource_error "ネットワークカード名がシステム列挙にありません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	}
+	case "$desired" in up|down) ;; *)
+		kpanel_system_resource_error "ネットワークカードのステータスはアップまたはダウンである必要があります"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version network-interface "$name")"
+		return 2
+		;;
+	esac
+	command -v ip >/dev/null 2>&1 || {
+		kpanel_system_resource_error "ipコマンドがありません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version network-interface "$name")"
+		return 2
+	}
+	kpanel_system_resource_check_expected network-interface "$expected" "$name" || return $?
+	old_state="$(kpanel_system_resource_interface_admin_state "$name")" || {
+		kpanel_system_resource_error "ネットワークカードの管理ステータスを読み取ることができません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	}
+	if [ "$old_state" = "$desired" ]; then
+		kpanel_system_resource_emit unchanged "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 0
+	fi
+	if ! ip link set dev "$name" "$desired" >/dev/null 2>&1; then
+		kpanel_system_resource_interface_failure "$name" "$old_state" "ネットワークカードのステータス変更に失敗し、復元中です。"
+		return 1
+	fi
+	current_state=""
+	for attempt in 1 2 3 4 5; do
+		current_state="$(kpanel_system_resource_interface_admin_state "$name" 2>/dev/null || true)"
+		[ "$current_state" = "$desired" ] && break
+		sleep 0.1
+	done
+	if [ "$current_state" != "$desired" ]; then
+		kpanel_system_resource_interface_failure "$name" "$old_state" "ネットワーク カード ステータスのリードバック検証が失敗しましたが、回復中です"
+		return 1
+	fi
+	version="$(kpanel_system_resource_interface_version "$name" 2>/dev/null)" || {
+		kpanel_system_resource_interface_failure "$name" "$old_state" "ネットワーク カード リソースのバージョンを計算できません。回復中です"
+		return 1
+	}
+	kpanel_system_resource_emit applied "$version"
+}
+
+kpanel_system_resource_iptables() {
+	iptables -w 5 "$@" >/dev/null 2>&1
+}
+
+kpanel_system_resource_firewall_rule_exists() {
+	local chain="$1"
+	shift
+	kpanel_system_resource_iptables -C "$chain" "$@"
+}
+
+kpanel_system_resource_firewall_delete_rule() {
+	local chain="$1"
+	shift
+	while kpanel_system_resource_firewall_rule_exists "$chain" "$@"; do
+		kpanel_system_resource_iptables -D "$chain" "$@" || return 1
+		KPANEL_SYSTEM_RESOURCE_FIREWALL_CHANGED=true
+	done
+}
+
+kpanel_system_resource_firewall_ensure_rule() {
+	local placement="$1"
+	local chain="$2"
+	shift 2
+	kpanel_system_resource_firewall_rule_exists "$chain" "$@" && return 0
+	case "$placement" in
+		insert) kpanel_system_resource_iptables -I "$chain" 1 "$@" ;;
+		append) kpanel_system_resource_iptables -A "$chain" "$@" ;;
+		*) return 1 ;;
+	esac || return 1
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_CHANGED=true
+}
+
+kpanel_system_resource_firewall_chain_exists() {
+	kpanel_system_resource_iptables -S "$1"
+}
+
+kpanel_system_resource_firewall_port() {
+	local value="$1"
+	[[ "$value" =~ ^[0-9]{1,5}$ ]] &&
+		[ "$((10#$value))" -ge 1 ] &&
+		[ "$((10#$value))" -le 65535 ]
+}
+
+kpanel_system_resource_ssh_ports() {
+	local ports="" config
+	if command -v sshd >/dev/null 2>&1; then
+		ports="$(sshd -T 2>/dev/null | awk 'tolower($1) == "port" && $2 ~ /^[0-9]+$/ {print $2}')"
+	fi
+	if [ -z "$ports" ]; then
+		ports="$({
+			for config in /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf; do
+				[ -f "$config" ] || continue
+				awk 'tolower($1) == "port" && $2 ~ /^[0-9]+$/ {print $2}' "$config"
+			done
+		} 2>/dev/null)"
+	fi
+	[ -n "$ports" ] || ports=22
+	printf '%s\n' "$ports" | awk '/^[0-9]+$/ && $1 >= 1 && $1 <= 65535' | sort -nu
+}
+
+kpanel_system_resource_firewall_open_port_rules() {
+	local port="$1" protocol
+	for protocol in tcp udp; do
+		kpanel_system_resource_firewall_delete_rule INPUT -p "$protocol" --dport "$port" -j DROP || return 1
+		kpanel_system_resource_firewall_ensure_rule insert INPUT -p "$protocol" --dport "$port" -j ACCEPT || return 1
+	done
+	for protocol in tcp udp; do
+		kpanel_system_resource_firewall_rule_exists INPUT -p "$protocol" --dport "$port" -j ACCEPT || return 1
+		! kpanel_system_resource_firewall_rule_exists INPUT -p "$protocol" --dport "$port" -j DROP || return 1
+	done
+}
+
+kpanel_system_resource_firewall_close_port_rules() {
+	local port="$1" protocol
+	for protocol in tcp udp; do
+		kpanel_system_resource_firewall_delete_rule INPUT -p "$protocol" --dport "$port" -j ACCEPT || return 1
+		kpanel_system_resource_firewall_ensure_rule insert INPUT -p "$protocol" --dport "$port" -j DROP || return 1
+	done
+	kpanel_system_resource_firewall_ensure_rule insert INPUT -i lo -j ACCEPT || return 1
+	kpanel_system_resource_firewall_ensure_rule insert FORWARD -i lo -j ACCEPT || return 1
+	for protocol in tcp udp; do
+		kpanel_system_resource_firewall_rule_exists INPUT -p "$protocol" --dport "$port" -j DROP || return 1
+		! kpanel_system_resource_firewall_rule_exists INPUT -p "$protocol" --dport "$port" -j ACCEPT || return 1
+	done
+}
+
+kpanel_system_resource_firewall_allow_ip_rules() {
+	local address="$1"
+	kpanel_system_resource_firewall_delete_rule INPUT -s "$address" -j DROP || return 1
+	kpanel_system_resource_firewall_ensure_rule insert INPUT -s "$address" -j ACCEPT || return 1
+	kpanel_system_resource_firewall_rule_exists INPUT -s "$address" -j ACCEPT &&
+		! kpanel_system_resource_firewall_rule_exists INPUT -s "$address" -j DROP
+}
+
+kpanel_system_resource_firewall_block_ip_rules() {
+	local address="$1"
+	kpanel_system_resource_firewall_delete_rule INPUT -s "$address" -j ACCEPT || return 1
+	kpanel_system_resource_firewall_ensure_rule insert INPUT -s "$address" -j DROP || return 1
+	kpanel_system_resource_firewall_rule_exists INPUT -s "$address" -j DROP &&
+		! kpanel_system_resource_firewall_rule_exists INPUT -s "$address" -j ACCEPT
+}
+
+kpanel_system_resource_firewall_remove_ip_rules() {
+	local address="$1"
+	kpanel_system_resource_firewall_delete_rule INPUT -s "$address" -j ACCEPT &&
+		kpanel_system_resource_firewall_delete_rule INPUT -s "$address" -j DROP || return 1
+	! kpanel_system_resource_firewall_rule_exists INPUT -s "$address" -j ACCEPT &&
+		! kpanel_system_resource_firewall_rule_exists INPUT -s "$address" -j DROP
+}
+
+kpanel_system_resource_firewall_enable_ping_rules() {
+	kpanel_system_resource_firewall_delete_rule INPUT -p icmp --icmp-type echo-request -j DROP &&
+		kpanel_system_resource_firewall_delete_rule OUTPUT -p icmp --icmp-type echo-reply -j DROP &&
+		kpanel_system_resource_firewall_delete_rule INPUT -p icmp --icmp-type echo-request -j ACCEPT &&
+		kpanel_system_resource_firewall_delete_rule OUTPUT -p icmp --icmp-type echo-reply -j ACCEPT || return 1
+	kpanel_system_resource_iptables -I INPUT 1 -p icmp --icmp-type echo-request -j ACCEPT &&
+		kpanel_system_resource_iptables -I OUTPUT 1 -p icmp --icmp-type echo-reply -j ACCEPT || return 1
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_CHANGED=true
+	kpanel_system_resource_firewall_rule_exists INPUT -p icmp --icmp-type echo-request -j ACCEPT &&
+		kpanel_system_resource_firewall_rule_exists OUTPUT -p icmp --icmp-type echo-reply -j ACCEPT
+}
+
+kpanel_system_resource_firewall_disable_ping_rules() {
+	kpanel_system_resource_firewall_delete_rule INPUT -p icmp --icmp-type echo-request -j ACCEPT &&
+		kpanel_system_resource_firewall_delete_rule OUTPUT -p icmp --icmp-type echo-reply -j ACCEPT &&
+		kpanel_system_resource_firewall_delete_rule INPUT -p icmp --icmp-type echo-request -j DROP &&
+		kpanel_system_resource_firewall_delete_rule OUTPUT -p icmp --icmp-type echo-reply -j DROP || return 1
+	kpanel_system_resource_iptables -I INPUT 1 -p icmp --icmp-type echo-request -j DROP &&
+		kpanel_system_resource_iptables -I OUTPUT 1 -p icmp --icmp-type echo-reply -j DROP || return 1
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_CHANGED=true
+	kpanel_system_resource_firewall_rule_exists INPUT -p icmp --icmp-type echo-request -j DROP &&
+		kpanel_system_resource_firewall_rule_exists OUTPUT -p icmp --icmp-type echo-reply -j DROP
+}
+
+kpanel_system_resource_firewall_enable_ddos_chain() {
+	local chain="$1"
+	kpanel_system_resource_firewall_disable_ddos_chain "$chain" || return 1
+	kpanel_system_resource_iptables -I "$chain" 1 -p udp -j DROP || return 1
+	kpanel_system_resource_iptables -I "$chain" 1 -p udp -m limit --limit 3000/s -j ACCEPT || return 1
+	kpanel_system_resource_iptables -I "$chain" 1 -p tcp --syn -j DROP || return 1
+	kpanel_system_resource_iptables -I "$chain" 1 -p tcp --syn -m limit --limit 500/s --limit-burst 100 -j ACCEPT || return 1
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_CHANGED=true
+	kpanel_system_resource_firewall_rule_exists "$chain" -p tcp --syn -m limit --limit 500/s --limit-burst 100 -j ACCEPT &&
+		kpanel_system_resource_firewall_rule_exists "$chain" -p tcp --syn -j DROP &&
+		kpanel_system_resource_firewall_rule_exists "$chain" -p udp -m limit --limit 3000/s -j ACCEPT &&
+		kpanel_system_resource_firewall_rule_exists "$chain" -p udp -j DROP
+}
+
+kpanel_system_resource_firewall_disable_ddos_chain() {
+	local chain="$1"
+	kpanel_system_resource_firewall_delete_rule "$chain" -p tcp --syn -m limit --limit 500/s --limit-burst 100 -j ACCEPT &&
+		kpanel_system_resource_firewall_delete_rule "$chain" -p tcp --syn -j DROP &&
+		kpanel_system_resource_firewall_delete_rule "$chain" -p udp -m limit --limit 3000/s -j ACCEPT &&
+		kpanel_system_resource_firewall_delete_rule "$chain" -p udp -j DROP
+}
+
+kpanel_system_resource_firewall_enable_ddos_rules() {
+	kpanel_system_resource_firewall_enable_ddos_chain INPUT || return 1
+	if kpanel_system_resource_firewall_chain_exists DOCKER-USER; then
+		kpanel_system_resource_firewall_enable_ddos_chain DOCKER-USER || return 1
+	fi
+}
+
+kpanel_system_resource_firewall_disable_ddos_rules() {
+	kpanel_system_resource_firewall_disable_ddos_chain INPUT || return 1
+	if kpanel_system_resource_firewall_chain_exists DOCKER-USER; then
+		kpanel_system_resource_firewall_disable_ddos_chain DOCKER-USER || return 1
+	fi
+}
+
+kpanel_system_resource_firewall_base_rules() {
+	local ssh_port
+	kpanel_system_resource_firewall_ensure_rule append INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+		kpanel_system_resource_firewall_ensure_rule append OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+		kpanel_system_resource_firewall_ensure_rule append INPUT -i lo -j ACCEPT &&
+		kpanel_system_resource_firewall_ensure_rule append FORWARD -i lo -j ACCEPT || return 1
+	while IFS= read -r ssh_port; do
+		[ -n "$ssh_port" ] || continue
+		kpanel_system_resource_firewall_ensure_rule append INPUT -p tcp --dport "$ssh_port" -j ACCEPT || return 1
+	done < <(kpanel_system_resource_ssh_ports)
+}
+
+kpanel_system_resource_firewall_all_rules() {
+	local input_policy="$1"
+	kpanel_system_resource_iptables -F &&
+		kpanel_system_resource_iptables -X || return 1
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_CHANGED=true
+	kpanel_system_resource_iptables -P OUTPUT ACCEPT || return 1
+	if [ "$input_policy" = ACCEPT ]; then
+		kpanel_system_resource_iptables -P INPUT ACCEPT &&
+			kpanel_system_resource_iptables -P FORWARD ACCEPT || return 1
+		kpanel_system_resource_firewall_base_rules || return 1
+	else
+		kpanel_system_resource_firewall_base_rules || return 1
+		kpanel_system_resource_iptables -P INPUT DROP &&
+			kpanel_system_resource_iptables -P FORWARD DROP || return 1
+	fi
+	iptables -w 5 -S INPUT 2>/dev/null | grep -Fqx -- "-P INPUT $input_policy" &&
+		iptables -w 5 -S FORWARD 2>/dev/null | grep -Fqx -- "-P FORWARD $input_policy" &&
+		iptables -w 5 -S OUTPUT 2>/dev/null | grep -Fqx -- "-P OUTPUT ACCEPT"
+}
+
+kpanel_system_resource_firewall_apply() {
+	local action="$1"
+	local value="${2:-}"
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_CHANGED=false
+	case "$action" in
+		open-port) kpanel_system_resource_firewall_open_port_rules "$value" ;;
+		close-port) kpanel_system_resource_firewall_close_port_rules "$value" ;;
+		allow-ip) kpanel_system_resource_firewall_allow_ip_rules "$value" ;;
+		block-ip) kpanel_system_resource_firewall_block_ip_rules "$value" ;;
+		remove-ip) kpanel_system_resource_firewall_remove_ip_rules "$value" ;;
+		open-all) kpanel_system_resource_firewall_all_rules ACCEPT ;;
+		close-all) kpanel_system_resource_firewall_all_rules DROP ;;
+		enable-ping) kpanel_system_resource_firewall_enable_ping_rules ;;
+		disable-ping) kpanel_system_resource_firewall_disable_ping_rules ;;
+		enable-ddos) kpanel_system_resource_firewall_enable_ddos_rules ;;
+		disable-ddos) kpanel_system_resource_firewall_disable_ddos_rules ;;
+		*) return 2 ;;
+	esac
+}
+
+kpanel_system_resource_firewall_snapshot() {
+	local snapshot_dir="$1"
+	local rules_path="$2"
+
+	kpanel_system_resource_firewall_capture "$snapshot_dir/iptables.rules" || return 1
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_RULES_EXISTED=false
+	if [ -e "$rules_path" ]; then
+		[ -f "$rules_path" ] && [ ! -L "$rules_path" ] || return 1
+		cp -p -- "$rules_path" "$snapshot_dir/rules.v4" >/dev/null 2>&1 || return 1
+		KPANEL_SYSTEM_RESOURCE_FIREWALL_RULES_EXISTED=true
+	fi
+	kpanel_system_resource_cron_capture "$snapshot_dir/crontab" || return 1
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_CRON_EXISTED="$KPANEL_SYSTEM_RESOURCE_CRON_EXISTED"
+}
+
+kpanel_system_resource_firewall_persist() {
+	local snapshot_dir="$1"
+	local rules_path parent desired_rules verify_rules
+	local cron_current cron_desired cron_verify restore_line count current_line
+	local comparison
+
+	KPANEL_SYSTEM_RESOURCE_FIREWALL_PERSIST_CHANGED=false
+	rules_path="$(kpanel_system_resource_iptables_rules_file)"
+	parent="$(dirname -- "$rules_path")"
+	mkdir -p -- "$parent" >/dev/null 2>&1 || return 1
+	[ ! -L "$rules_path" ] || return 1
+	desired_rules="$(mktemp "$parent/.rules.v4.kpanel.XXXXXX")" || return 1
+	if ! kpanel_system_resource_firewall_capture "$desired_rules"; then
+		rm -f -- "$desired_rules"
+		return 1
+	fi
+	comparison=1
+	if [ -f "$rules_path" ]; then
+		if kpanel_system_resource_firewall_canonical_equal "$desired_rules" "$rules_path"; then
+			comparison=0
+		else
+			comparison=$?
+		fi
+		if [ "$comparison" -gt 1 ]; then
+			rm -f -- "$desired_rules"
+			return 1
+		fi
+	fi
+	if [ "$comparison" -eq 0 ]; then
+		rm -f -- "$desired_rules"
+	else
+		if [ -f "$rules_path" ]; then
+			kpanel_system_resource_copy_identity "$rules_path" "$desired_rules" || {
+				rm -f -- "$desired_rules"
+				return 1
+			}
+		else
+			chmod 600 "$desired_rules" >/dev/null 2>&1 || {
+				rm -f -- "$desired_rules"
+				return 1
+			}
+		fi
+		mv -f -- "$desired_rules" "$rules_path" >/dev/null 2>&1 || {
+			rm -f -- "$desired_rules"
+			return 1
+		}
+		KPANEL_SYSTEM_RESOURCE_FIREWALL_PERSIST_CHANGED=true
+	fi
+	verify_rules="$snapshot_dir/iptables.persist.verify"
+	kpanel_system_resource_firewall_capture "$verify_rules" || return 1
+	kpanel_system_resource_firewall_canonical_equal "$verify_rules" "$rules_path" || return 1
+
+	restore_line='@reboot iptables-restore < /etc/iptables/rules.v4'
+	cron_current="$snapshot_dir/crontab.persist.current"
+	kpanel_system_resource_cron_capture "$cron_current" || return 1
+	count="$(grep -Fxc -- "$restore_line" "$cron_current" 2>/dev/null || true)"
+	if [ "$count" -ne 1 ]; then
+		cron_desired="$snapshot_dir/crontab.persist.desired"
+		: > "$cron_desired" || return 1
+		while IFS= read -r current_line || [ -n "$current_line" ]; do
+			[ "$current_line" = "$restore_line" ] && continue
+			printf '%s\n' "$current_line" >> "$cron_desired" || return 1
+		done < "$cron_current"
+		if [ -s "$cron_desired" ] && [ "$(tail -c 1 "$cron_desired" | wc -l)" -eq 0 ]; then
+			printf '\n' >> "$cron_desired" || return 1
+		fi
+		printf '%s\n' "$restore_line" >> "$cron_desired" || return 1
+		kpanel_system_resource_file_within_bounds "$cron_desired" 262144 512 || return 1
+		crontab "$cron_desired" >/dev/null 2>&1 || return 1
+		cron_verify="$snapshot_dir/crontab.persist.verify"
+		kpanel_system_resource_cron_capture "$cron_verify" || return 1
+		cmp -s -- "$cron_desired" "$cron_verify" || return 1
+		KPANEL_SYSTEM_RESOURCE_FIREWALL_PERSIST_CHANGED=true
+	fi
+}
+
+kpanel_system_resource_firewall_restore() {
+	local snapshot_dir="$1"
+	local rules_path="$2"
+	local rules_existed="$3"
+	local cron_existed="$4"
+	local verify="$snapshot_dir/rollback.iptables"
+	local cron_verify="$snapshot_dir/rollback.crontab"
+	local failed=false
+
+	iptables-restore -w 5 < "$snapshot_dir/iptables.rules" >/dev/null 2>&1 || failed=true
+	if [ "$rules_existed" = true ]; then
+		cp -p -- "$snapshot_dir/rules.v4" "$rules_path" >/dev/null 2>&1 || failed=true
+	else
+		rm -f -- "$rules_path" >/dev/null 2>&1 || failed=true
+	fi
+	kpanel_system_resource_cron_restore "$snapshot_dir/crontab" "$cron_existed" "$cron_verify" || failed=true
+	kpanel_system_resource_firewall_capture "$verify" || failed=true
+	kpanel_system_resource_firewall_canonical_equal "$snapshot_dir/iptables.rules" "$verify" || failed=true
+	if [ "$rules_existed" = true ]; then
+		cmp -s -- "$snapshot_dir/rules.v4" "$rules_path" || failed=true
+	else
+		[ ! -e "$rules_path" ] || failed=true
+	fi
+	[ "$failed" = false ]
+}
+
+kpanel_system_resource_firewall_failure() {
+	local snapshot_dir="$1"
+	local rules_path="$2"
+	local rules_existed="$3"
+	local cron_existed="$4"
+	local message="$5"
+	local version recovery_path
+
+	kpanel_system_resource_error "$message"
+	if kpanel_system_resource_firewall_restore "$snapshot_dir" "$rules_path" "$rules_existed" "$cron_existed"; then
+		version="$(kpanel_system_resource_best_version firewall)"
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_emit failed "$version"
+	else
+		version="$(kpanel_system_resource_best_version firewall)"
+		kpanel_system_resource_error "iptables のロールバックが失敗したため、手動での回復が必要です"
+		if recovery_path="$(kpanel_system_resource_persist_recovery_snapshot "$snapshot_dir" firewall)"; then
+			kpanel_system_resource_emit rollback-failed "$version" "$recovery_path"
+		else
+			kpanel_system_resource_error "iptables が失敗しました スナップショットの永続化が失敗しました、ホストに表示されるバックアップ パスが生成されませんでした"
+			kpanel_system_resource_emit rollback-failed "$version"
+		fi
+	fi
+	return 1
+}
+
+kpanel_system_resource_firewall_action() {
+	local action="$1"
+	shift
+	local expected value="" snapshot_dir rules_path rules_existed cron_existed final_version
+	local command_name
+
+	for command_name in iptables iptables-save iptables-restore crontab; do
+		command -v "$command_name" >/dev/null 2>&1 || {
+			kpanel_system_resource_error "必要なコマンドが欠落しています:$command_name"
+			kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+			return 2
+		}
+	done
+	rules_path="$(kpanel_system_resource_iptables_rules_file)"
+	[ ! -L "$rules_path" ] || {
+		kpanel_system_resource_error "iptables 永続ファイルをシンボリック リンクにすることはできません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version firewall)"
+		return 2
+	}
+	case "$action" in
+		open-port|close-port)
+			[ "$#" -eq 2 ] || {
+				kpanel_system_resource_error "$action期待値が必要です"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version firewall)"
+				return 2
+			}
+			expected="$1"
+			value="$2"
+			kpanel_system_resource_firewall_port "$value" || {
+				kpanel_system_resource_error "ファイアウォールのポートは 1 ～ 65535 である必要があります"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version firewall)"
+				return 2
+			}
+			value=$((10#$value))
+			;;
+		allow-ip|block-ip|remove-ip)
+			[ "$#" -eq 2 ] || {
+				kpanel_system_resource_error "$action期待値が必要です"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version firewall)"
+				return 2
+			}
+			expected="$1"
+			value="$2"
+			kpanel_system_resource_is_ipv4_cidr "$value" || {
+				kpanel_system_resource_error "ファイアウォール アドレスは IPv4 または IPv4 CIDR である必要があります"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version firewall)"
+				return 2
+			}
+			;;
+		open-all|close-all|enable-ping|disable-ping|enable-ddos|disable-ddos)
+			[ "$#" -eq 1 ] || {
+				kpanel_system_resource_error "$actionまさに予想通り"
+				kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version firewall)"
+				return 2
+			}
+			expected="$1"
+			;;
+		*)
+			kpanel_system_resource_error "サポートされていないファイアウォール アクション"
+			kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version firewall)"
+			return 2
+			;;
+	esac
+
+	kpanel_system_resource_check_expected firewall "$expected" || return $?
+	snapshot_dir="$(kpanel_system_resource_tempdir firewall)" || {
+		kpanel_system_resource_error "ファイアウォール トランザクション ディレクトリを作成できません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	}
+	if ! kpanel_system_resource_firewall_snapshot "$snapshot_dir" "$rules_path"; then
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_error "iptables/crontab スナップショットを作成できません"
+		kpanel_system_resource_emit failed "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION"
+		return 1
+	fi
+	rules_existed="$KPANEL_SYSTEM_RESOURCE_FIREWALL_RULES_EXISTED"
+	cron_existed="$KPANEL_SYSTEM_RESOURCE_FIREWALL_CRON_EXISTED"
+	if ! kpanel_system_resource_firewall_apply "$action" "$value"; then
+		kpanel_system_resource_firewall_failure "$snapshot_dir" "$rules_path" "$rules_existed" "$cron_existed" "iptables アクションの実行またはリードバック検証が失敗しました"
+		return $?
+	fi
+	if ! kpanel_system_resource_firewall_persist "$snapshot_dir"; then
+		kpanel_system_resource_firewall_failure "$snapshot_dir" "$rules_path" "$rules_existed" "$cron_existed" "iptables の永続化に失敗しました"
+		return $?
+	fi
+	final_version="$(kpanel_system_resource_firewall_version 2>/dev/null)" || {
+		kpanel_system_resource_firewall_failure "$snapshot_dir" "$rules_path" "$rules_existed" "$cron_existed" "変更された iptables バージョンを計算できません"
+		return $?
+	}
+	if [ "$final_version" = "$KPANEL_SYSTEM_RESOURCE_CURRENT_VERSION" ] &&
+		[ "$KPANEL_SYSTEM_RESOURCE_FIREWALL_PERSIST_CHANGED" = false ]; then
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_emit unchanged "$final_version"
+	else
+		rm -rf -- "$snapshot_dir"
+		kpanel_system_resource_emit applied "$final_version"
+	fi
+}
+
+kpanel_system_resource_run_locked() (
+	local resource="$1"
+	local action="$2"
+	local lock_file name=""
+	shift 2
+
+	[ "$resource" = "network-interface" ] && name="${2:-}"
+	lock_file="$(kpanel_system_resource_prepare_lock_file)" || {
+		kpanel_system_resource_error "システムリソースのロックパスが安全でないか、作成できません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version "$resource" "$name")"
+		return 1
+	}
+	exec 9<>"$lock_file" || {
+		kpanel_system_resource_error "システムリソースロックを開けません"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version "$resource" "$name")"
+		return 1
+	}
+	kpanel_system_resource_lock_path_secure "$lock_file" file 600 || {
+		exec 9>&-
+		kpanel_system_resource_error "システムリソースロックファイルを開いた後に検証が失敗しました"
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_best_version "$resource" "$name")"
+		return 1
+	}
+	if ! flock -w 5 -x 9 >/dev/null 2>&1; then
+		kpanel_system_resource_error "システムリソース書き込みロック待機タイムアウト"
+		kpanel_system_resource_emit conflict "$(kpanel_system_resource_best_version "$resource" "$name")"
+		return 2
+	fi
+	case "$resource" in
+		hosts) kpanel_system_resource_hosts_action "$action" "$@" ;;
+		cron) kpanel_system_resource_cron_action "$action" "$@" ;;
+		network-interface) kpanel_system_resource_interface_action "$action" "$@" ;;
+		firewall) kpanel_system_resource_firewall_action "$action" "$@" ;;
+		*)
+			kpanel_system_resource_error "サポートされていないシステムリソースリソース"
+			kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+			return 2
+			;;
+	esac
+)
+
+kpanel_system_resource_dispatch() {
+	local resource="${1:-}"
+	local action="${2:-}"
+	local rc
+
+	kpanel_system_resource_require_platform
+	rc=$?
+	[ "$rc" -eq 0 ] || return "$rc"
+	[ "$#" -ge 2 ] || {
+		kpanel_system_resource_error "使用法: kpanel system-resource <リソース> <アクション> ..."
+		kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+		return 2
+	}
+	case "$resource" in
+		hosts|cron|network-interface|firewall) ;;
+		*)
+			kpanel_system_resource_error "サポートされていないシステムリソースリソース"
+			kpanel_system_resource_emit failed "$(kpanel_system_resource_zero_version)"
+			return 2
+			;;
+	esac
+	shift 2
+	kpanel_system_resource_run_locked "$resource" "$action" "$@"
+}
+
+# KPanel system resource protocol end
+
+
+# KPanel network operations protocol start
+KPANEL_NETWORK_OPERATIONS_PROTOCOL_VERSION="1"
+
+kpanel_network_operations_script_file() {
+	printf '%s\n' "/root/Limiting_Shut_down.sh"
+}
+
+kpanel_network_operations_net_dev_file() {
+	printf '%s\n' "/proc/net/dev"
+}
+
+kpanel_network_operations_emit() {
+	local status="$1"
+	local version="${2:-}"
+	local backup="${3:-}"
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || version="$(kpanel_system_resource_zero_version)"
+	printf 'KPANEL_NETWORK_OPERATIONS_STATUS=%s\n' "$status"
+	printf 'KPANEL_NETWORK_OPERATIONS_VERSION=%s\n' "$version"
+	[ -z "$backup" ] || printf 'KPANEL_NETWORK_OPERATIONS_BACKUP=%s\n' "$backup"
+}
+
+kpanel_network_operations_error() {
+	printf 'エラー: %s\n' "$1" >&2
+}
+
+kpanel_network_operations_require() {
+	local needs_root="$1"
+	shift
+	[ "${KJ_NETWORK_OPERATIONS_NONINTERACTIVE:-}" = "1" ] || {
+		kpanel_network_operations_error "KPanel ネットワーク操作プロトコル環境が有効になっていません"
+		kpanel_network_operations_emit failed
+		return 2
+	}
+	[ "$(uname -s 2>/dev/null)" = "Linux" ] || {
+		kpanel_network_operations_error "KPanel ネットワーク操作プロトコルは Linux のみをサポートします"
+		kpanel_network_operations_emit failed
+		return 2
+	}
+	if [ "$needs_root" = true ] && [ "$(id -u)" -ne 0 ]; then
+		kpanel_network_operations_error "電流制限シャットダウン管理は root として実行する必要があります"
+		kpanel_network_operations_emit failed
+		return 2
+	fi
+	for command_name in "$@"; do
+		command -v "$command_name" >/dev/null 2>&1 || {
+			kpanel_network_operations_error "必要なコマンドが欠落しています:$command_name"
+			kpanel_network_operations_emit failed
+			return 2
+		}
+	done
+}
+
+kpanel_network_operations_port_usage() {
+	local temporary total truncated=false version line hex count=0
+	kpanel_network_operations_require false ss awk wc sha256sum od tr mktemp || return $?
+	[ "$#" -eq 0 ] || {
+		kpanel_network_operations_error "ポート使用リストは追加パラメータを受け入れません"
+		kpanel_network_operations_emit failed
+		return 2
+	}
+	temporary="$(mktemp /tmp/kejilion-network-ports.XXXXXX)" || {
+		kpanel_network_operations_error "ポート占有スナップショットを作成できません"
+		kpanel_network_operations_emit failed
+		return 1
+	}
+	if ! LC_ALL=C ss -H -lntup > "$temporary" 2>/dev/null; then
+		rm -f -- "$temporary"
+		kpanel_network_operations_error "リスニングポートを読み取れません"
+		kpanel_network_operations_emit failed
+		return 1
+	fi
+	if ! kpanel_system_resource_file_within_bounds "$temporary" 4194304 4096 ||
+		! awk 'length($0) > 4096 { exit 1 }' "$temporary"; then
+		rm -f -- "$temporary"
+		kpanel_network_operations_error "ポート占有結果がプロトコルの上限を超えています"
+		kpanel_network_operations_emit failed
+		return 1
+	fi
+	total="$(awk 'END { print NR + 0 }' "$temporary")" || total=0
+	[ "$total" -le 512 ] || truncated=true
+	version="$(sha256sum -- "$temporary" 2>/dev/null | awk '{print $1}')"
+	kpanel_network_operations_emit ok "$version"
+	printf 'KPANEL_NETWORK_OPERATIONS_TOTAL=%s\n' "$total"
+	printf 'KPANEL_NETWORK_OPERATIONS_TRUNCATED=%s\n' "$truncated"
+	while IFS= read -r line && [ "$count" -lt 512 ]; do
+		hex="$(printf '%s' "$line" | od -An -v -tx1 | tr -d ' \n')" || {
+			rm -f -- "$temporary"
+			return 1
+		}
+		printf 'KPANEL_NETWORK_OPERATIONS_PORT_HEX=%s\n' "$hex"
+		count=$((count + 1))
+	done < "$temporary"
+	rm -f -- "$temporary"
+}
+
+kpanel_network_operations_traffic_bytes() {
+	local path
+	path="$(kpanel_network_operations_net_dev_file)"
+	[ -f "$path" ] && [ ! -L "$path" ] || return 1
+	awk '
+		BEGIN { rx = 0; tx = 0 }
+		$1 ~ /^(eth|ens|enp|eno)[0-9]+:/ { rx += $2; tx += $10 }
+		END { printf "%.0f %.0f\n", rx, tx }
+	' "$path"
+}
+
+kpanel_network_operations_script_safe() {
+	local path="$1" uid expected_uid mode
+	[ -f "$path" ] && [ ! -L "$path" ] || return 1
+	kpanel_system_resource_file_within_bounds "$path" 65536 256 || return 1
+	uid="$(stat -c '%u' "$path" 2>/dev/null)" || return 1
+	expected_uid="$(kpanel_system_resource_lock_owner_uid)" || return 1
+	[ "$uid" = "$expected_uid" ] || return 1
+	mode="$(stat -c '%a' "$path" 2>/dev/null)" || return 1
+	[[ "$mode" =~ ^[0-7]{3,4}$ ]] && [ "$((8#$mode & 0022))" -eq 0 ]
+}
+
+kpanel_network_operations_cron_relevant() {
+	local source="$1"
+	awk '
+		$0 == "# kejilion traffic shutdown start" { managed = 1; print; next }
+		managed { print; if ($0 == "# kejilion traffic shutdown end") managed = 0; next }
+		$0 == "* * * * * ~/Limiting_Shut_down.sh" ||
+		$0 == "* * * * * /root/Limiting_Shut_down.sh" { print }
+	' "$source"
+}
+
+kpanel_network_operations_traffic_version() {
+	local script_path cron_path canonical version
+	script_path="$(kpanel_network_operations_script_file)"
+	[ ! -L "$script_path" ] || return 1
+	cron_path="$(mktemp /tmp/kejilion-network-traffic-cron.XXXXXX)" || return 1
+	canonical="$(mktemp /tmp/kejilion-network-traffic-version.XXXXXX)" || {
+		rm -f -- "$cron_path"
+		return 1
+	}
+	if ! kpanel_system_resource_cron_capture "$cron_path"; then
+		rm -f -- "$cron_path" "$canonical"
+		return 1
+	fi
+	if [ -e "$script_path" ]; then
+		kpanel_network_operations_script_safe "$script_path" || {
+			rm -f -- "$cron_path" "$canonical"
+			return 1
+		}
+		printf 'script=present\n' > "$canonical"
+		sha256sum -- "$script_path" >> "$canonical" || {
+			rm -f -- "$cron_path" "$canonical"
+			return 1
+		}
+	else
+		printf 'script=absent\n' > "$canonical"
+	fi
+	printf 'cron:\n' >> "$canonical"
+	kpanel_network_operations_cron_relevant "$cron_path" >> "$canonical" || {
+		rm -f -- "$cron_path" "$canonical"
+		return 1
+	}
+	version="$(sha256sum -- "$canonical" 2>/dev/null | awk '{print $1}')"
+	rm -f -- "$cron_path" "$canonical"
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || return 1
+	printf '%s\n' "$version"
+}
+
+kpanel_network_operations_parse_script() {
+	local path="$1" rx tx
+	grep -Fqx '# KEJILION_TRAFFIC_SHUTDOWN_MANAGED_V1' "$path" || return 1
+	rx="$(sed -n 's/^rx_threshold_gb=\([0-9][0-9]*\)$/\1/p' "$path")"
+	tx="$(sed -n 's/^tx_threshold_gb=\([0-9][0-9]*\)$/\1/p' "$path")"
+	[[ "$rx" =~ ^[0-9]+$ ]] && [[ "$tx" =~ ^[0-9]+$ ]] || return 1
+	[ "$(printf '%s\n' "$rx" | wc -l)" -eq 1 ] && [ "$(printf '%s\n' "$tx" | wc -l)" -eq 1 ] || return 1
+	KPANEL_NETWORK_TRAFFIC_RX="$rx"
+	KPANEL_NETWORK_TRAFFIC_TX="$tx"
+}
+
+kpanel_network_operations_traffic_status() {
+	local script_path cron_path version bytes rx_bytes tx_bytes enabled=false health=disabled
+	local rx_threshold=0 tx_threshold=0 reset_day=0 invocation_count reset_line_count start_count end_count expected_script
+	kpanel_network_operations_require false awk crontab grep sed sha256sum stat wc mktemp cmp || return $?
+	[ "$#" -eq 0 ] || {
+		kpanel_network_operations_error "トラフィック シャットダウン ステータスは追加パラメータを受け入れません"
+		kpanel_network_operations_emit failed
+		return 2
+	}
+	script_path="$(kpanel_network_operations_script_file)"
+	cron_path="$(mktemp /tmp/kejilion-network-traffic-status.XXXXXX)" || {
+		kpanel_network_operations_emit failed
+		return 1
+	}
+	if ! kpanel_system_resource_cron_capture "$cron_path"; then
+		rm -f -- "$cron_path"
+		kpanel_network_operations_error "ルートの crontab を読み取れません"
+		kpanel_network_operations_emit failed
+		return 1
+	fi
+	version="$(kpanel_network_operations_traffic_version)" || {
+		rm -f -- "$cron_path"
+		kpanel_network_operations_error "電流制限シャットダウン構成が安全でないか、バージョンを計算できません。"
+		kpanel_network_operations_emit failed
+		return 1
+	}
+	bytes="$(kpanel_network_operations_traffic_bytes)" || {
+		rm -f -- "$cron_path"
+		kpanel_network_operations_error "累積ネットワークトラフィックを読み取ることができません"
+		kpanel_network_operations_emit failed "$version"
+		return 1
+	}
+	read -r rx_bytes tx_bytes <<< "$bytes"
+	if [ -e "$script_path" ]; then
+		enabled=true
+		if kpanel_network_operations_script_safe "$script_path" &&
+			kpanel_network_operations_parse_script "$script_path"; then
+			rx_threshold="$KPANEL_NETWORK_TRAFFIC_RX"
+			tx_threshold="$KPANEL_NETWORK_TRAFFIC_TX"
+			expected_script="$(mktemp /tmp/kejilion-network-traffic-expected.XXXXXX)" || {
+				rm -f -- "$cron_path"
+				kpanel_network_operations_emit failed "$version"
+				return 1
+			}
+			if ! kpanel_network_operations_build_script "$expected_script" "$rx_threshold" "$tx_threshold" ||
+				! cmp -s -- "$expected_script" "$script_path"; then
+				rx_threshold=0
+				tx_threshold=0
+			fi
+			rm -f -- "$expected_script"
+		fi
+	fi
+	start_count="$(grep -Fxc '# kejilion traffic shutdown start' "$cron_path")"
+	end_count="$(grep -Fxc '# kejilion traffic shutdown end' "$cron_path")"
+	invocation_count="$(grep -Fxc "* * * * * $script_path" "$cron_path")"
+	reset_line_count="$(sed -n '/^# kejilion traffic shutdown start$/,/^# kejilion traffic shutdown end$/p' "$cron_path" | grep -Ec '^0 1 ([1-9]|[12][0-9]|3[01]) \* \* reboot$')"
+	if [ "$enabled" = true ] && [ "$rx_threshold" -gt 0 ] && [ "$tx_threshold" -gt 0 ] &&
+		[ "$start_count" -eq 1 ] && [ "$end_count" -eq 1 ] && [ "$invocation_count" -eq 1 ] && [ "$reset_line_count" -eq 1 ]; then
+		reset_day="$(sed -n '/^# kejilion traffic shutdown start$/,/^# kejilion traffic shutdown end$/s/^0 1 \([0-9][0-9]*\) \* \* reboot$/\1/p' "$cron_path")"
+		if [[ "$reset_day" =~ ^([1-9]|[12][0-9]|3[01])$ ]]; then
+			health=ready
+		else
+			health=inconsistent
+		fi
+	elif [ "$enabled" = false ] && [ "$start_count" -eq 0 ] && [ "$end_count" -eq 0 ] && [ "$invocation_count" -eq 0 ]; then
+		health=disabled
+	else
+		health=inconsistent
+	fi
+	rm -f -- "$cron_path"
+	kpanel_network_operations_emit ok "$version"
+	printf 'KPANEL_NETWORK_OPERATIONS_ENABLED=%s\n' "$enabled"
+	printf 'KPANEL_NETWORK_OPERATIONS_HEALTH=%s\n' "$health"
+	printf 'KPANEL_NETWORK_OPERATIONS_RX_BYTES=%s\n' "$rx_bytes"
+	printf 'KPANEL_NETWORK_OPERATIONS_TX_BYTES=%s\n' "$tx_bytes"
+	printf 'KPANEL_NETWORK_OPERATIONS_RX_THRESHOLD_GIB=%s\n' "$rx_threshold"
+	printf 'KPANEL_NETWORK_OPERATIONS_TX_THRESHOLD_GIB=%s\n' "$tx_threshold"
+	printf 'KPANEL_NETWORK_OPERATIONS_RESET_DAY=%s\n' "$reset_day"
+}
+
+kpanel_network_operations_valid_threshold() {
+	[[ "$1" =~ ^[0-9]+$ ]] && [ "$1" != 0 ] && [ "$((10#$1))" -le 8388607 ]
+}
+
+kpanel_network_operations_build_script() {
+	local target="$1" rx="$2" tx="$3"
+	cat > "$target" <<EOF
+#!/bin/bash
+# KEJILION_TRAFFIC_SHUTDOWN_MANAGED_V1
+set -u
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+rx_threshold_gb=$rx
+tx_threshold_gb=$tx
+read -r rx_bytes tx_bytes <<TRAFFIC
+\$(awk 'BEGIN { rx = 0; tx = 0 } \$1 ~ /^(eth|ens|enp|eno)[0-9]+:/ { rx += \$2; tx += \$10 } END { printf "%.0f %.0f\\n", rx, tx }' /proc/net/dev)
+TRAFFIC
+rx_threshold_bytes=\$((rx_threshold_gb * 1024 * 1024 * 1024))
+tx_threshold_bytes=\$((tx_threshold_gb * 1024 * 1024 * 1024))
+if [ "\$rx_bytes" -ge "\$rx_threshold_bytes" ] || [ "\$tx_bytes" -ge "\$tx_threshold_bytes" ]; then
+	shutdown -h now
+fi
+EOF
+}
+
+kpanel_network_operations_build_cron() {
+	local source="$1" target="$2" action="$3" script_path="$4" reset_day="$5"
+	awk '
+		$0 == "# kejilion traffic shutdown start" { managed = 1; next }
+		managed && $0 == "# kejilion traffic shutdown end" { managed = 0; next }
+		managed { next }
+		$0 == "* * * * * ~/Limiting_Shut_down.sh" { next }
+		$0 == "* * * * * /root/Limiting_Shut_down.sh" { next }
+		{ print }
+	' "$source" > "$target" || return 1
+	if [ "$action" = enable ]; then
+		{
+			printf '%s\n' '# kejilion traffic shutdown start'
+			printf '* * * * * %s\n' "$script_path"
+			printf '0 1 %s * * reboot\n' "$reset_day"
+			printf '%s\n' '# kejilion traffic shutdown end'
+		} >> "$target" || return 1
+	fi
+	kpanel_system_resource_file_within_bounds "$target" 262144 512
+}
+
+kpanel_network_operations_restore_traffic() {
+	local snapshot="$1" script_path="$2" script_existed="$3" cron_existed="$4" verify version="$5"
+	if [ "$script_existed" = true ]; then
+		cp -p -- "$snapshot/script" "$script_path" >/dev/null 2>&1 || return 1
+	else
+		rm -f -- "$script_path" >/dev/null 2>&1 || return 1
+	fi
+	verify="$snapshot/cron.verify"
+	kpanel_system_resource_cron_restore "$snapshot/crontab" "$cron_existed" "$verify" || return 1
+	[ "$(kpanel_network_operations_traffic_version 2>/dev/null)" = "$version" ]
+}
+
+kpanel_network_operations_traffic_failure() {
+	local snapshot="$1" script_path="$2" script_existed="$3" cron_existed="$4" original_version="$5" message="$6"
+	local version recovery_path
+	kpanel_network_operations_error "$message"
+	if kpanel_network_operations_restore_traffic "$snapshot" "$script_path" "$script_existed" "$cron_existed" "$original_version"; then
+		version="$(kpanel_network_operations_traffic_version 2>/dev/null || true)"
+		rm -rf -- "$snapshot"
+		kpanel_network_operations_emit failed "$version"
+		return 1
+	else
+		version="$(kpanel_network_operations_traffic_version 2>/dev/null || true)"
+		if recovery_path="$(kpanel_system_resource_persist_recovery_snapshot "$snapshot" traffic-shutdown)"; then
+			kpanel_network_operations_emit rollback-failed "$version" "$recovery_path"
+		else
+			kpanel_network_operations_emit rollback-failed "$version"
+		fi
+		return 1
+	fi
+}
+
+kpanel_network_operations_traffic_action() {
+	local action="$1" expected="${2:-}" rx="${3:-}" tx="${4:-}" reset_day="${5:-}"
+	local script_path current_version snapshot cron_existed script_existed=false
+	local desired_script desired_cron install_temp final_version
+	case "$action" in
+		enable)
+			[ "$#" -eq 5 ] && kpanel_system_resource_valid_version "$expected" &&
+				kpanel_network_operations_valid_threshold "$rx" &&
+				kpanel_network_operations_valid_threshold "$tx" &&
+				[[ "$reset_day" =~ ^([1-9]|[12][0-9]|3[01])$ ]] || {
+				kpanel_network_operations_error "Enable には、expectedVersion、正の整数 GiB しきい値、および 1 ～ 31 のリセット日が必要です"
+				kpanel_network_operations_emit failed "$(kpanel_network_operations_traffic_version 2>/dev/null || true)"
+				return 2
+			}
+			;;
+		disable)
+			[ "$#" -eq 2 ] && kpanel_system_resource_valid_version "$expected" || {
+				kpanel_network_operations_error "無効にするには、expectedVersion のみが必要です"
+				kpanel_network_operations_emit failed "$(kpanel_network_operations_traffic_version 2>/dev/null || true)"
+				return 2
+			}
+			;;
+		*)
+			kpanel_network_operations_error "サポートされていないトラフィックシャットダウンアクション"
+			kpanel_network_operations_emit failed
+			return 2
+			;;
+	esac
+	script_path="$(kpanel_network_operations_script_file)"
+	[ ! -L "$script_path" ] || {
+		kpanel_network_operations_error "電流制限シャットダウン スクリプトをシンボリック リンクにすることはできません"
+		kpanel_network_operations_emit failed
+		return 1
+	}
+	current_version="$(kpanel_network_operations_traffic_version)" || {
+		kpanel_network_operations_error "電流制限シャットダウン構成を読み取ることができません"
+		kpanel_network_operations_emit failed
+		return 1
+	}
+	if [ "$current_version" != "$expected" ]; then
+		kpanel_network_operations_error "リソースのバージョンが変更されました。更新して再試行してください。"
+		kpanel_network_operations_emit conflict "$current_version"
+		return 2
+	fi
+	snapshot="$(kpanel_system_resource_tempdir traffic-shutdown)" || {
+		kpanel_network_operations_emit failed "$current_version"
+		return 1
+	}
+	if [ -e "$script_path" ]; then
+		kpanel_network_operations_script_safe "$script_path" || {
+			rm -rf -- "$snapshot"
+			kpanel_network_operations_emit failed "$current_version"
+			return 1
+		}
+		cp -p -- "$script_path" "$snapshot/script" || {
+			rm -rf -- "$snapshot"
+			kpanel_network_operations_emit failed "$current_version"
+			return 1
+		}
+		script_existed=true
+	fi
+	kpanel_system_resource_cron_capture "$snapshot/crontab" || {
+		rm -rf -- "$snapshot"
+		kpanel_network_operations_emit failed "$current_version"
+		return 1
+	}
+	cron_existed="$KPANEL_SYSTEM_RESOURCE_CRON_EXISTED"
+	printf '%s\n' "$script_existed" > "$snapshot/script.existed"
+	printf '%s\n' "$cron_existed" > "$snapshot/cron.existed"
+	desired_script="$snapshot/script.desired"
+	desired_cron="$snapshot/cron.desired"
+	if [ "$action" = enable ]; then
+		kpanel_network_operations_build_script "$desired_script" "$rx" "$tx" || {
+			kpanel_network_operations_traffic_failure "$snapshot" "$script_path" "$script_existed" "$cron_existed" "$current_version" "電流制限シャットダウン スクリプトを生成できません"
+			return $?
+		}
+	fi
+	kpanel_network_operations_build_cron "$snapshot/crontab" "$desired_cron" "$action" "$script_path" "$reset_day" || {
+		kpanel_network_operations_traffic_failure "$snapshot" "$script_path" "$script_existed" "$cron_existed" "$current_version" "電流制限シャットダウンの crontab を生成できません"
+		return $?
+	}
+	if { [ "$action" = enable ] && [ "$script_existed" = true ] &&
+		cmp -s -- "$desired_script" "$script_path" && cmp -s -- "$desired_cron" "$snapshot/crontab"; } ||
+		{ [ "$action" = disable ] && [ "$script_existed" = false ] && cmp -s -- "$desired_cron" "$snapshot/crontab"; }; then
+		rm -rf -- "$snapshot"
+		kpanel_network_operations_emit unchanged "$current_version"
+		return 0
+	fi
+	if [ "$action" = enable ]; then
+		install_temp="$(mktemp "$(dirname -- "$script_path")/.Limiting_Shut_down.sh.XXXXXX")" || {
+			kpanel_network_operations_traffic_failure "$snapshot" "$script_path" "$script_existed" "$cron_existed" "$current_version" "電流制限付きシャットダウン一時ファイルを作成できません"
+			return $?
+		}
+		if ! cp -- "$desired_script" "$install_temp" || ! chown 0:0 "$install_temp" 2>/dev/null ||
+			! chmod 700 "$install_temp" || ! mv -f -- "$install_temp" "$script_path"; then
+			rm -f -- "$install_temp"
+			kpanel_network_operations_traffic_failure "$snapshot" "$script_path" "$script_existed" "$cron_existed" "$current_version" "電流制限シャットダウン スクリプトをアトミックにインストールできません"
+			return $?
+		fi
+	else
+		rm -f -- "$script_path" || {
+			kpanel_network_operations_traffic_failure "$snapshot" "$script_path" "$script_existed" "$cron_existed" "$current_version" "電流制限シャットダウン スクリプトを削除できません"
+			return $?
+		}
+	fi
+	if ! crontab "$desired_cron"; then
+		kpanel_network_operations_traffic_failure "$snapshot" "$script_path" "$script_existed" "$cron_existed" "$current_version" "電流制限シャットダウン crontab をインストールできません"
+		return $?
+	fi
+	final_version="$(kpanel_network_operations_traffic_version)" || {
+		kpanel_network_operations_traffic_failure "$snapshot" "$script_path" "$script_existed" "$cron_existed" "$current_version" "電流制限シャットダウン構成のリードバックに失敗しました"
+		return $?
+	}
+	if [ "$final_version" = "$current_version" ]; then
+		rm -rf -- "$snapshot"
+		kpanel_network_operations_emit unchanged "$final_version"
+	else
+		rm -rf -- "$snapshot"
+		kpanel_network_operations_emit applied "$final_version"
+	fi
+}
+
+kpanel_network_operations_traffic_run_locked() (
+	local action="$1" lock_file
+	shift
+	lock_file="$(kpanel_system_resource_prepare_lock_file)" || {
+		kpanel_network_operations_error "ネットワーク操作ロック パスが安全でないか、作成できません"
+		kpanel_network_operations_emit failed "$(kpanel_network_operations_traffic_version 2>/dev/null || true)"
+		return 1
+	}
+	exec 9<>"$lock_file" || return 1
+	kpanel_system_resource_lock_path_secure "$lock_file" file 600 || return 1
+	if ! flock -w 5 -x 9 >/dev/null 2>&1; then
+		kpanel_network_operations_error "ネットワーク操作書き込みロック待機タイムアウト"
+		kpanel_network_operations_emit conflict "$(kpanel_network_operations_traffic_version 2>/dev/null || true)"
+		return 2
+	fi
+	kpanel_network_operations_traffic_action "$action" "$@"
+)
+
+kpanel_network_operations_dispatch() {
+	local resource="${1:-}" action="${2:-}"
+	[ "$#" -ge 2 ] || {
+		kpanel_network_operations_error "使用法: kpanel network-operations <port-usage|traffic-shutdown> <action> ..."
+		kpanel_network_operations_emit failed
+		return 2
+	}
+	shift 2
+	case "$resource:$action" in
+		port-usage:list) kpanel_network_operations_port_usage "$@" ;;
+		traffic-shutdown:status)
+			kpanel_network_operations_traffic_status "$@"
+			;;
+		traffic-shutdown:enable|traffic-shutdown:disable)
+			kpanel_network_operations_require true awk crontab grep sed sha256sum stat wc mktemp flock cmp cp mv chmod chown || return $?
+			kpanel_network_operations_traffic_run_locked "$action" "$@"
+			;;
+		*)
+			kpanel_network_operations_error "サポートされていないネットワーク操作リソースまたはアクション"
+			kpanel_network_operations_emit failed
+			return 2
+			;;
+	esac
+}
+
+# KPanel network operations protocol end
+
+
+# KPanel account management protocol start
+KPANEL_ACCOUNT_MANAGEMENT_PROTOCOL_VERSION="1"
+
+kpanel_account_error() {
+	printf '%s\n' "$*" >&2
+}
+
+kpanel_account_emit() {
+	local status="$1" version="${2:-}" backup="${3:-}"
+	printf 'KPANEL_ACCOUNT_MANAGEMENT_STATUS=%s\n' "$status"
+	[ -z "$version" ] || printf 'KPANEL_ACCOUNT_MANAGEMENT_VERSION=%s\n' "$version"
+	[ -z "$backup" ] || printf 'KPANEL_ACCOUNT_MANAGEMENT_BACKUP=%s\n' "$backup"
+}
+
+kpanel_account_root_path() {
+	local path="$1"
+	printf '%s%s\n' "${KPANEL_ACCOUNT_TEST_ROOT:-}" "$path"
+}
+
+kpanel_account_passwd_file() { kpanel_account_root_path /etc/passwd; }
+kpanel_account_group_file() { kpanel_account_root_path /etc/group; }
+kpanel_account_shadow_file() { kpanel_account_root_path /etc/shadow; }
+kpanel_account_gshadow_file() { kpanel_account_root_path /etc/gshadow; }
+kpanel_account_login_defs_file() { kpanel_account_root_path /etc/login.defs; }
+kpanel_account_sudoers_file() { kpanel_account_root_path /etc/sudoers; }
+kpanel_account_sudoers_dir() { kpanel_account_root_path /etc/sudoers.d; }
+kpanel_account_sshd_config() { kpanel_account_root_path /etc/ssh/sshd_config; }
+kpanel_account_sshd_fragment() { kpanel_account_root_path /etc/ssh/sshd_config.d/00-kejilion-account-management.conf; }
+
+kpanel_account_host_path() {
+	local path="$1"
+	if [ -n "${KPANEL_ACCOUNT_TEST_ROOT:-}" ]; then
+		printf '%s%s\n' "$KPANEL_ACCOUNT_TEST_ROOT" "$path"
+	else
+		printf '%s\n' "$path"
+	fi
+}
+
+kpanel_account_valid_username() {
+	[[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] && [[ "$1" != *'$' ]]
+}
+
+kpanel_account_require() {
+	local write="$1" command
+	shift
+	[ "${KJ_ACCOUNT_MANAGEMENT_NONINTERACTIVE:-}" = "1" ] || {
+		kpanel_account_error "KPanel アカウント管理プロトコル環境が有効になっていません"
+		return 2
+	}
+	[ "$EUID" -eq 0 ] || {
+		kpanel_account_error "KPanel アカウント管理プロトコルは root として実行する必要があります"
+		return 1
+	}
+	[ "$(uname -s 2>/dev/null)" = Linux ] || {
+		kpanel_account_error "KPanel アカウント管理プロトコルは Linux のみをサポートします"
+		return 2
+	}
+	for command in "$@"; do
+		command -v "$command" >/dev/null 2>&1 || {
+			kpanel_account_error "アカウント管理の依存関係が欠落しています:$command"
+			return 2
+		}
+	done
+	if [ "$write" = true ]; then
+		for command in flock cp mv chmod chown mktemp; do
+			command -v "$command" >/dev/null 2>&1 || {
+				kpanel_account_error "アカウント管理の書き込み依存関係が欠落しています:$command"
+				return 2
+			}
+		done
+	fi
+}
+
+kpanel_account_file_safe() {
+	local path="$1" max_bytes="$2" max_lines="$3"
+	[ -f "$path" ] && [ ! -L "$path" ] || return 1
+	kpanel_system_resource_file_within_bounds "$path" "$max_bytes" "$max_lines"
+}
+
+kpanel_account_find_record() {
+	local username="$1" passwd_file
+	passwd_file="$(kpanel_account_passwd_file)"
+	awk -F: -v username="$username" '$1 == username { print; found=1; exit } END { exit(found ? 0 : 1) }' "$passwd_file"
+}
+
+kpanel_account_exists() {
+	kpanel_account_find_record "$1" >/dev/null 2>&1
+}
+
+kpanel_account_home() {
+	local record
+	record="$(kpanel_account_find_record "$1")" || return 1
+	printf '%s\n' "$record" | awk -F: '{print $6}'
+}
+
+kpanel_account_authorized_keys() {
+	local username="$1" home
+	home="$(kpanel_account_home "$username")" || return 1
+	[[ "$home" = /* ]] && [ "$home" != / ] || return 1
+	printf '%s/.ssh/authorized_keys\n' "$(kpanel_account_host_path "$home")"
+}
+
+kpanel_account_capture_keys() {
+	local username="$1" target="$2" path
+	path="$(kpanel_account_authorized_keys "$username")" || return 1
+	: > "$target" || return 1
+	[ ! -e "$path" ] && return 0
+	[ -f "$path" ] && [ ! -L "$path" ] || return 1
+	if [ -n "${KPANEL_ACCOUNT_TEST_ROOT:-}" ]; then
+		cat -- "$path" > "$target" || return 1
+	else
+		runuser -u "$username" -- cat -- "$path" > "$target" 2>/dev/null || return 1
+	fi
+	kpanel_system_resource_file_within_bounds "$target" 131072 128
+}
+
+kpanel_account_key_valid() {
+	local key="$1" temporary LC_ALL=C
+	[ -n "$key" ] && [ "${#key}" -le 4096 ] && [[ "$key" != *$'\n'* ]] && [[ "$key" != *$'\r'* ]] || return 1
+	case "$key" in
+		ssh-rsa\ *|ssh-ed25519\ *|ecdsa-sha2-*\ *|sk-ssh-ed25519@openssh.com\ *|sk-ecdsa-sha2-nistp256@openssh.com\ *) ;;
+		*) return 1 ;;
+	esac
+	temporary="$(mktemp /tmp/kejilion-account-key.XXXXXX)" || return 1
+	chmod 600 "$temporary" || { rm -f -- "$temporary"; return 1; }
+	printf '%s\n' "$key" > "$temporary" || { rm -f -- "$temporary"; return 1; }
+	ssh-keygen -lf "$temporary" >/dev/null 2>&1
+	local result=$?
+	rm -f -- "$temporary"
+	return "$result"
+}
+
+kpanel_account_key_id() {
+	printf '%s' "$1" | sha256sum | awk '{print $1}'
+}
+
+kpanel_account_install_keys() {
+	local username="$1" desired="$2" path ssh_dir temp uid gid
+	path="$(kpanel_account_authorized_keys "$username")" || return 1
+	ssh_dir="$(dirname -- "$path")" || return 1
+	[ ! -L "$ssh_dir" ] && [ ! -L "$path" ] || return 1
+	uid="$(kpanel_account_find_record "$username" | awk -F: '{print $3}')" || return 1
+	gid="$(kpanel_account_find_record "$username" | awk -F: '{print $4}')" || return 1
+	if [ -n "${KPANEL_ACCOUNT_TEST_ROOT:-}" ]; then
+		mkdir -p -- "$ssh_dir" || return 1
+		chmod 700 "$ssh_dir" || return 1
+		temp="$(mktemp "$ssh_dir/.authorized_keys.XXXXXX")" || return 1
+		cp -- "$desired" "$temp" && chmod 600 "$temp" && mv -f -- "$temp" "$path" || { rm -f -- "$temp"; return 1; }
+		return 0
+	fi
+	runuser -u "$username" -- mkdir -p -- "$ssh_dir" >/dev/null 2>&1 || return 1
+	runuser -u "$username" -- chmod 700 "$ssh_dir" >/dev/null 2>&1 || return 1
+	temp="$ssh_dir/.authorized_keys.kpanel.$$.$RANDOM"
+	runuser -u "$username" -- tee "$temp" < "$desired" >/dev/null 2>&1 || return 1
+	if ! runuser -u "$username" -- chmod 600 "$temp" >/dev/null 2>&1 ||
+		! runuser -u "$username" -- mv -f -- "$temp" "$path" >/dev/null 2>&1; then
+		runuser -u "$username" -- rm -f -- "$temp" >/dev/null 2>&1 || true
+		return 1
+	fi
+	chown "$uid:$gid" "$ssh_dir" "$path" >/dev/null 2>&1 || return 1
+}
+
+kpanel_account_password_status() {
+	local username="$1" status
+	status="$(passwd -S "$username" 2>/dev/null | awk '{print $2}')" || return 1
+	case "$status" in
+		P) printf '%s\n' enabled ;;
+		L|LK) printf '%s\n' locked ;;
+		NP) printf '%s\n' unset ;;
+		*) printf '%s\n' unknown ;;
+	esac
+}
+
+kpanel_account_admin_group() {
+	if getent group sudo >/dev/null 2>&1; then
+		printf '%s\n' sudo
+	elif getent group wheel >/dev/null 2>&1; then
+		printf '%s\n' wheel
+	else
+		return 1
+	fi
+}
+
+kpanel_account_sudo_file() {
+	printf '%s/90-kejilion-%s\n' "$(kpanel_account_sudoers_dir)" "$1"
+}
+
+kpanel_account_role() {
+	local username="$1" groups sudo_file
+	[ "$username" = root ] && { printf '%s\n' root; return 0; }
+	sudo_file="$(kpanel_account_sudo_file "$username")"
+	if [ -f "$sudo_file" ] && [ ! -L "$sudo_file" ] &&
+		grep -Fqx "$username ALL=(ALL:ALL) NOPASSWD:ALL" "$sudo_file"; then
+		printf '%s\n' passwordless-admin
+		return 0
+	fi
+	groups="$(id -nG "$username" 2>/dev/null)" || return 1
+	case " $groups " in
+		*' sudo '*|*' wheel '*) printf '%s\n' administrator ;;
+		*) printf '%s\n' standard ;;
+	esac
+}
+
+kpanel_account_sshd_effective() {
+	local config password pubkey root
+	config="$(kpanel_account_sshd_config)"
+	[ -f "$config" ] && [ ! -L "$config" ] || return 1
+	while read -r key value _; do
+		case "$key" in
+			passwordauthentication) password="$value" ;;
+			pubkeyauthentication) pubkey="$value" ;;
+			permitrootlogin) root="$value" ;;
+		esac
+	done < <(sshd -T -f "$config" 2>/dev/null)
+	[ "$password" = yes ] || password=no
+	[ "$pubkey" = yes ] || pubkey=no
+	case "$root" in
+		yes) root=enabled ;;
+		prohibit-password|without-password) root=key-only ;;
+		no) root=disabled ;;
+		*) root=custom ;;
+	esac
+	printf '%s %s %s\n' "$password" "$pubkey" "$root"
+}
+
+kpanel_account_version() {
+	local canonical file username auth sudo_file effective version
+	canonical="$(mktemp /tmp/kejilion-account-version.XXXXXX)" || return 1
+	chmod 600 "$canonical" || { rm -f -- "$canonical"; return 1; }
+	for file in "$(kpanel_account_passwd_file)" "$(kpanel_account_group_file)" \
+		"$(kpanel_account_shadow_file)" "$(kpanel_account_gshadow_file)" \
+		"$(kpanel_account_sudoers_file)" "$(kpanel_account_sshd_config)" "$(kpanel_account_sshd_fragment)"; do
+		if [ -e "$file" ]; then
+			kpanel_account_file_safe "$file" 1048576 8192 || { rm -f -- "$canonical"; return 1; }
+			printf 'file=%s ' "$file" >> "$canonical"
+			sha256sum -- "$file" >> "$canonical" || { rm -f -- "$canonical"; return 1; }
+		else
+			printf 'file=%s absent\n' "$file" >> "$canonical"
+		fi
+	done
+	effective="$(kpanel_account_sshd_effective)" || { rm -f -- "$canonical"; return 1; }
+	printf 'sshd=%s\n' "$effective" >> "$canonical"
+	while IFS=: read -r username _; do
+		kpanel_account_valid_username "$username" || continue
+		auth="$(mktemp /tmp/kejilion-account-auth.XXXXXX)" || { rm -f -- "$canonical"; return 1; }
+		if kpanel_account_capture_keys "$username" "$auth"; then
+			printf 'keys=%s ' "$username" >> "$canonical"
+			sha256sum -- "$auth" | awk '{print $1}' >> "$canonical" || { rm -f -- "$canonical" "$auth"; return 1; }
+		else
+			printf 'keys=%s unreadable\n' "$username" >> "$canonical"
+		fi
+		rm -f -- "$auth"
+		sudo_file="$(kpanel_account_sudo_file "$username")"
+		if [ -e "$sudo_file" ]; then
+			kpanel_account_file_safe "$sudo_file" 4096 16 || { rm -f -- "$canonical"; return 1; }
+			printf 'sudo=%s ' "$username" >> "$canonical"
+			sha256sum -- "$sudo_file" >> "$canonical" || { rm -f -- "$canonical"; return 1; }
+		fi
+	done < "$(kpanel_account_passwd_file)"
+	version="$(sha256sum -- "$canonical" | awk '{print $1}')"
+	rm -f -- "$canonical"
+	[[ "$version" =~ ^[0-9a-f]{64}$ ]] || return 1
+	printf '%s\n' "$version"
+}
+
+kpanel_account_hex() {
+	printf '%s' "$1" | od -An -v -tx1 | tr -d ' \n'
+}
+
+kpanel_account_status() {
+	local version effective password_auth pubkey_auth root_login passwd_file login_defs uid_min=1000
+	local username _ uid gid gecos home shell groups password role kind account_record auth key key_id key_type fingerprint comment
+	local total=0 emitted=0 truncated=false key_count key_temp
+	kpanel_account_require false awk cat getent grep id mktemp od passwd runuser sha256sum ssh-keygen sshd stat tr wc || return $?
+	[ "$#" -eq 0 ] || { kpanel_account_error "ステータスは追加のパラメータを受け入れません"; kpanel_account_emit failed; return 2; }
+	passwd_file="$(kpanel_account_passwd_file)"
+	kpanel_account_file_safe "$passwd_file" 1048576 8192 || { kpanel_account_emit failed; return 1; }
+	login_defs="$(kpanel_account_login_defs_file)"
+	if [ -f "$login_defs" ] && [ ! -L "$login_defs" ]; then
+		uid_min="$(awk '$1 == "UID_MIN" && $2 ~ /^[0-9]+$/ {print $2; exit}' "$login_defs")"
+		[[ "$uid_min" =~ ^[0-9]+$ ]] || uid_min=1000
+	fi
+	version="$(kpanel_account_version)" || { kpanel_account_error "アカウントリソースのバージョンを計算できません"; kpanel_account_emit failed; return 1; }
+	effective="$(kpanel_account_sshd_effective)" || { kpanel_account_emit failed "$version"; return 1; }
+	read -r password_auth pubkey_auth root_login <<< "$effective"
+	while IFS=: read -r username _; do
+		kpanel_account_valid_username "$username" || continue
+		total=$((total + 1))
+	done < "$passwd_file"
+	[ "$total" -le 256 ] || truncated=true
+	kpanel_account_emit ok "$version"
+	printf 'KPANEL_ACCOUNT_MANAGEMENT_PASSWORD_AUTH=%s\n' "$password_auth"
+	printf 'KPANEL_ACCOUNT_MANAGEMENT_PUBKEY_AUTH=%s\n' "$pubkey_auth"
+	printf 'KPANEL_ACCOUNT_MANAGEMENT_ROOT_LOGIN=%s\n' "$root_login"
+	printf 'KPANEL_ACCOUNT_MANAGEMENT_TOTAL=%s\n' "$total"
+	printf 'KPANEL_ACCOUNT_MANAGEMENT_TRUNCATED=%s\n' "$truncated"
+	while IFS=: read -r username _ uid gid gecos home shell; do
+		[ "$emitted" -lt 256 ] || break
+		kpanel_account_valid_username "$username" || continue
+		groups="$(id -nG "$username" 2>/dev/null | tr ' ' ',')" || groups=""
+		password="$(kpanel_account_password_status "$username")" || password=unknown
+		role="$(kpanel_account_role "$username")" || role=standard
+		if [ "$username" = root ]; then kind=root; elif [ "$uid" -ge "$uid_min" ] 2>/dev/null; then kind=human; else kind=system; fi
+		key_temp="$(mktemp /tmp/kejilion-account-status-keys.XXXXXX)" || { kpanel_account_emit failed "$version"; return 1; }
+		key_count=0
+		if kpanel_account_capture_keys "$username" "$key_temp"; then
+			while IFS= read -r key || [ -n "$key" ]; do
+				[ -n "$key" ] || continue
+				kpanel_account_key_valid "$key" || continue
+				[ "$key_count" -lt 32 ] || break
+				key_id="$(kpanel_account_key_id "$key")"
+				key_type="${key%% *}"
+				fingerprint="$(printf '%s\n' "$key" | ssh-keygen -lf /dev/stdin 2>/dev/null | awk '{print $2}')"
+				comment="$(printf '%s\n' "$key" | awk '{ $1=""; $2=""; sub(/^  */, ""); print }' | tr '\t\r\n' '   ' | cut -c1-128)"
+				printf 'KPANEL_ACCOUNT_MANAGEMENT_KEY_HEX=%s\n' "$(kpanel_account_hex "$username	$key_id	$key_type	$fingerprint	$comment")"
+				key_count=$((key_count + 1))
+			done < "$key_temp"
+		fi
+		rm -f -- "$key_temp"
+		account_record="$username	$uid	$gid	$home	$shell	$kind	$password	$role	$groups	$key_count"
+		printf 'KPANEL_ACCOUNT_MANAGEMENT_ACCOUNT_HEX=%s\n' "$(kpanel_account_hex "$account_record")"
+		emitted=$((emitted + 1))
+	done < "$passwd_file"
+}
+
+kpanel_account_read_secret() {
+	local maximum="$1" frame bytes line_feeds
+	KPANEL_ACCOUNT_SECRET=""
+	frame="$(mktemp /tmp/kejilion-account-secret.XXXXXX)" || return 1
+	chmod 600 "$frame" || { rm -f -- "$frame"; return 1; }
+	head -c "$((maximum + 2))" > "$frame" 2>/dev/null || { rm -f -- "$frame"; return 1; }
+	bytes="$(wc -c < "$frame")" || { rm -f -- "$frame"; return 1; }
+	if [ "$bytes" -lt 2 ] || [ "$bytes" -gt "$((maximum + 1))" ] ||
+		! LC_ALL=C tr -d '\000' < "$frame" | cmp -s - "$frame" || LC_ALL=C grep -q $'\r' "$frame"; then
+		rm -f -- "$frame"; return 1
+	fi
+	line_feeds="$(LC_ALL=C tr -cd '\n' < "$frame" | wc -c)" || { rm -f -- "$frame"; return 1; }
+	[ "$line_feeds" -eq 1 ] && [ "$(tail -c 1 "$frame" | wc -l)" -eq 1 ] || { rm -f -- "$frame"; return 1; }
+	IFS= read -r KPANEL_ACCOUNT_SECRET < "$frame" || { rm -f -- "$frame"; return 1; }
+	rm -f -- "$frame"
+}
+
+kpanel_account_snapshot_core() {
+	local snapshot="$1" file name
+	for name in passwd group shadow gshadow; do
+		case "$name" in
+			passwd) file="$(kpanel_account_passwd_file)" ;;
+			group) file="$(kpanel_account_group_file)" ;;
+			shadow) file="$(kpanel_account_shadow_file)" ;;
+			gshadow) file="$(kpanel_account_gshadow_file)" ;;
+		esac
+		[ ! -e "$file" ] || cp -p -- "$file" "$snapshot/$name" || return 1
+	done
+}
+
+kpanel_account_restore_core() {
+	local snapshot="$1" file name
+	for name in passwd group shadow gshadow; do
+		[ -f "$snapshot/$name" ] || continue
+		case "$name" in
+			passwd) file="$(kpanel_account_passwd_file)" ;;
+			group) file="$(kpanel_account_group_file)" ;;
+			shadow) file="$(kpanel_account_shadow_file)" ;;
+			gshadow) file="$(kpanel_account_gshadow_file)" ;;
+		esac
+		cp -p -- "$snapshot/$name" "$file" || return 1
+	done
+}
+
+kpanel_account_snapshot_ssh() {
+	local snapshot="$1" main fragment
+	main="$(kpanel_account_sshd_config)"; fragment="$(kpanel_account_sshd_fragment)"
+	[ ! -e "$main" ] || cp -p -- "$main" "$snapshot/sshd_config" || return 1
+	if [ -e "$fragment" ]; then cp -p -- "$fragment" "$snapshot/sshd_fragment" || return 1; else : > "$snapshot/sshd_fragment.absent"; fi
+}
+
+kpanel_account_reload_ssh() {
+	if command -v systemctl >/dev/null 2>&1; then
+		systemctl reload sshd >/dev/null 2>&1 || systemctl reload ssh >/dev/null 2>&1
+	elif command -v service >/dev/null 2>&1; then
+		service sshd reload >/dev/null 2>&1 || service ssh reload >/dev/null 2>&1
+	else
+		return 1
+	fi
+}
+
+kpanel_account_restore_ssh() {
+	local snapshot="$1" main fragment
+	main="$(kpanel_account_sshd_config)"; fragment="$(kpanel_account_sshd_fragment)"
+	[ ! -f "$snapshot/sshd_config" ] || cp -p -- "$snapshot/sshd_config" "$main" || return 1
+	if [ -f "$snapshot/sshd_fragment.absent" ]; then rm -f -- "$fragment" || return 1; else cp -p -- "$snapshot/sshd_fragment" "$fragment" || return 1; fi
+	sshd -t -f "$main" >/dev/null 2>&1 && kpanel_account_reload_ssh
+}
+
+kpanel_account_apply_ssh_policy() {
+	local password_auth="$1" root_login="$2" main fragment main_temp fragment_temp
+	main="$(kpanel_account_sshd_config)"; fragment="$(kpanel_account_sshd_fragment)"
+	[ -f "$main" ] && [ ! -L "$main" ] && [ ! -L "$fragment" ] || return 1
+	mkdir -p -- "$(dirname -- "$fragment")" || return 1
+	fragment_temp="$(mktemp "$(dirname -- "$fragment")/.00-kejilion-account-management.conf.XXXXXX")" || return 1
+	{
+		printf '%s\n' '# Managed by kejilion.sh account-management protocol v1'
+		printf 'PubkeyAuthentication yes\n'
+		[ "$password_auth" = enabled ] && printf 'PasswordAuthentication yes\n' || printf 'PasswordAuthentication no\n'
+		printf 'KbdInteractiveAuthentication no\nChallengeResponseAuthentication no\nUsePAM yes\n'
+		case "$root_login" in enabled) printf 'PermitRootLogin yes\n' ;; key-only) printf 'PermitRootLogin prohibit-password\n' ;; disabled) printf 'PermitRootLogin no\n' ;; *) rm -f -- "$fragment_temp"; return 1 ;; esac
+	} > "$fragment_temp" || { rm -f -- "$fragment_temp"; return 1; }
+	chmod 600 "$fragment_temp" && chown 0:0 "$fragment_temp" || { rm -f -- "$fragment_temp"; return 1; }
+	main_temp="$(mktemp "$(dirname -- "$main")/.sshd_config.XXXXXX")" || { rm -f -- "$fragment_temp"; return 1; }
+	awk '
+		BEGIN { inserted=0 }
+		/^[[:space:]]*Include[[:space:]]+\/etc\/ssh\/sshd_config\.d\/\*\.conf([[:space:]]|$)/ { if (!inserted) { print "Include /etc/ssh/sshd_config.d/*.conf"; inserted=1 }; next }
+		{ if (!inserted && $0 !~ /^[[:space:]]*(#|$)/) { print "Include /etc/ssh/sshd_config.d/*.conf"; inserted=1 }; print }
+		END { if (!inserted) print "Include /etc/ssh/sshd_config.d/*.conf" }
+	' "$main" > "$main_temp" || { rm -f -- "$fragment_temp" "$main_temp"; return 1; }
+	chmod --reference="$main" "$main_temp" 2>/dev/null || chmod 600 "$main_temp"
+	chown --reference="$main" "$main_temp" 2>/dev/null || chown 0:0 "$main_temp"
+	mv -f -- "$fragment_temp" "$fragment" && mv -f -- "$main_temp" "$main" || { rm -f -- "$fragment_temp" "$main_temp"; return 1; }
+	sshd -t -f "$main" >/dev/null 2>&1 && kpanel_account_reload_ssh
+}
+
+kpanel_account_set_role() {
+	local username="$1" role="$2" admin_group sudo_file sudo_dir groups
+	[ "$username" != root ] || return 1
+	sudo_file="$(kpanel_account_sudo_file "$username")"; sudo_dir="$(dirname -- "$sudo_file")"
+	[ ! -L "$sudo_dir" ] && [ ! -L "$sudo_file" ] || return 1
+	mkdir -p -- "$sudo_dir" || return 1
+	case "$role" in
+		standard)
+			gpasswd -d "$username" sudo >/dev/null 2>&1 || true
+			gpasswd -d "$username" wheel >/dev/null 2>&1 || true
+			rm -f -- "$sudo_file" || return 1
+			;;
+		administrator)
+			admin_group="$(kpanel_account_admin_group)" || return 1
+			[ "$(kpanel_account_password_status "$username")" = enabled ] || return 2
+			usermod -a -G "$admin_group" "$username" || return 1
+			rm -f -- "$sudo_file" || return 1
+			;;
+		passwordless-admin)
+			admin_group="$(kpanel_account_admin_group)" || return 1
+			usermod -a -G "$admin_group" "$username" || return 1
+			printf '%s ALL=(ALL:ALL) NOPASSWD:ALL\n' "$username" > "$sudo_file" || return 1
+			chmod 440 "$sudo_file" && chown 0:0 "$sudo_file" || return 1
+			visudo -cf "$sudo_file" >/dev/null 2>&1 || return 1
+			;;
+		*) return 2 ;;
+	esac
+	[ "$(kpanel_account_role "$username")" = "$role" ]
+}
+
+kpanel_account_create() {
+	local username="$1" role="$2" credential="$3" secret="$4"
+	local desired sudo_file LC_ALL=C
+	kpanel_account_valid_username "$username" && [ "$username" != root ] && ! kpanel_account_exists "$username" || return 2
+	case "$role" in standard|administrator|passwordless-admin) ;; *) return 2 ;; esac
+	case "$credential" in
+		password) [ "${#secret}" -ge 8 ] && [ "${#secret}" -le 256 ] || return 2 ;;
+		key) kpanel_account_key_valid "$secret" || return 2; [ "$role" != administrator ] || return 2 ;;
+		*) return 2 ;;
+	esac
+	useradd -m -s /bin/bash "$username" || return 1
+	if [ "$credential" = password ]; then
+		if ! printf '%s:%s\n' "$username" "$secret" | chpasswd; then
+			userdel -r "$username" >/dev/null 2>&1 || true
+			return 1
+		fi
+	else
+		desired="$(mktemp /tmp/kejilion-account-create-key.XXXXXX)" || {
+			userdel -r "$username" >/dev/null 2>&1 || true
+			return 1
+		}
+		printf '%s\n' "$secret" > "$desired"
+		if ! kpanel_account_install_keys "$username" "$desired"; then
+			rm -f -- "$desired"
+			userdel -r "$username" >/dev/null 2>&1 || true
+			return 1
+		fi
+		rm -f -- "$desired"
+		if ! passwd -l "$username" >/dev/null 2>&1; then
+			userdel -r "$username" >/dev/null 2>&1 || true
+			return 1
+		fi
+	fi
+	if ! kpanel_account_set_role "$username" "$role"; then
+		sudo_file="$(kpanel_account_sudo_file "$username")"
+		rm -f -- "$sudo_file" >/dev/null 2>&1 || true
+		userdel -r "$username" >/dev/null 2>&1 || true
+		return 1
+	fi
+}
+
+kpanel_account_write_failure() {
+	local snapshot="$1" original_version="$2" message="$3" restore_core="${4:-false}" restore_ssh="${5:-false}"
+	local version recovery restore_ok=true
+	kpanel_account_error "$message"
+	[ "$restore_core" != true ] || kpanel_account_restore_core "$snapshot" || restore_ok=false
+	[ "$restore_ssh" != true ] || kpanel_account_restore_ssh "$snapshot" || restore_ok=false
+	version="$(kpanel_account_version 2>/dev/null || true)"
+	if [ "$restore_ok" = true ] && [ "$version" = "$original_version" ]; then
+		rm -rf -- "$snapshot"
+		kpanel_account_emit failed "$version"
+		return 1
+	fi
+	if recovery="$(kpanel_system_resource_persist_recovery_snapshot "$snapshot" account-management)"; then
+		kpanel_account_emit rollback-failed "$version" "$recovery"
+	else
+		kpanel_account_emit rollback-failed "$version"
+	fi
+	return 1
+}
+
+kpanel_account_action() {
+	local action="$1" expected="$2" current snapshot final recovery username role credential marker secret="" changed=true
+	local LC_ALL=C
+	shift 2
+	kpanel_system_resource_valid_version "$expected" || { kpanel_account_emit failed; return 2; }
+	current="$(kpanel_account_version)" || { kpanel_account_emit failed; return 1; }
+	if [ "$current" != "$expected" ]; then kpanel_account_emit conflict "$current"; return 2; fi
+	snapshot="$(kpanel_system_resource_tempdir account-management)" || { kpanel_account_emit failed "$current"; return 1; }
+	case "$action" in
+		create)
+			[ "$#" -eq 4 ] && [ "$4" = --secret-stdin ] || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			username="$1"; role="$2"; credential="$3"
+			[ "$credential" = password ] && marker=256 || marker=4096
+			kpanel_account_read_secret "$marker" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			secret="$KPANEL_ACCOUNT_SECRET"
+			kpanel_account_snapshot_core "$snapshot" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			if ! kpanel_account_create "$username" "$role" "$credential" "$secret"; then kpanel_account_write_failure "$snapshot" "$current" "アカウントの作成に失敗しました。アカ​​ウント データベースを復元しようとしました" true false; return $?; fi
+			;;
+		set-password)
+			[ "$#" -eq 2 ] && [ "$2" = --secret-stdin ] && kpanel_account_exists "$1" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			username="$1"; kpanel_account_read_secret 256 || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			[ "${#KPANEL_ACCOUNT_SECRET}" -ge 8 ] || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			kpanel_account_snapshot_core "$snapshot" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			if ! printf '%s:%s\n' "$username" "$KPANEL_ACCOUNT_SECRET" | chpasswd; then kpanel_account_write_failure "$snapshot" "$current" "パスワードの変更に失敗したため、復元しようとしました" true false; return $?; fi
+			;;
+		add-key)
+			[ "$#" -eq 2 ] && [ "$2" = --secret-stdin ] && kpanel_account_exists "$1" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			username="$1"; kpanel_account_read_secret 4096 || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }; secret="$KPANEL_ACCOUNT_SECRET"
+			kpanel_account_key_valid "$secret" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			local keys desired
+			keys="$snapshot/authorized_keys"; desired="$snapshot/authorized_keys.desired"
+			kpanel_account_capture_keys "$username" "$keys" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			if grep -Fqx "$secret" "$keys"; then rm -rf -- "$snapshot"; kpanel_account_emit unchanged "$current"; return 0; fi
+			cp -- "$keys" "$desired" && printf '%s\n' "$secret" >> "$desired" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			if ! kpanel_account_install_keys "$username" "$desired"; then
+				kpanel_account_install_keys "$username" "$keys" >/dev/null 2>&1 || true
+				kpanel_account_write_failure "$snapshot" "$current" "SSH公開キーの追加に失敗したため、回復を試みました" false false
+				return $?
+			fi
+			;;
+		delete-key)
+			[ "$#" -eq 2 ] && kpanel_account_exists "$1" && [[ "$2" =~ ^[0-9a-f]{64}$ ]] || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			username="$1"; local key_id="$2" keys="$snapshot/authorized_keys" desired="$snapshot/authorized_keys.desired" line found=false
+			kpanel_account_capture_keys "$username" "$keys" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			: > "$desired"
+			while IFS= read -r line || [ -n "$line" ]; do if [ -n "$line" ] && [ "$(kpanel_account_key_id "$line")" = "$key_id" ]; then found=true; else printf '%s\n' "$line" >> "$desired"; fi; done < "$keys"
+			if [ "$found" = false ]; then rm -rf -- "$snapshot"; kpanel_account_emit unchanged "$current"; return 0; fi
+			if ! kpanel_account_install_keys "$username" "$desired"; then
+				kpanel_account_install_keys "$username" "$keys" >/dev/null 2>&1 || true
+				kpanel_account_write_failure "$snapshot" "$current" "SSH公開キーの削除に失敗し、回復を試みました" false false
+				return $?
+			fi
+			;;
+		set-role)
+			[ "$#" -eq 2 ] && kpanel_account_exists "$1" && [ "$1" != root ] || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			username="$1"; role="$2"; [ "$(kpanel_account_role "$username")" != "$role" ] || { rm -rf -- "$snapshot"; kpanel_account_emit unchanged "$current"; return 0; }
+			kpanel_account_snapshot_core "$snapshot" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			local sudo_file; sudo_file="$(kpanel_account_sudo_file "$username")"; if [ -e "$sudo_file" ]; then cp -p -- "$sudo_file" "$snapshot/sudo" || { rm -rf -- "$snapshot"; return 1; }; else : > "$snapshot/sudo.absent"; fi
+			if ! kpanel_account_set_role "$username" "$role"; then
+				if [ -f "$snapshot/sudo.absent" ]; then rm -f -- "$sudo_file" >/dev/null 2>&1 || true; else cp -p -- "$snapshot/sudo" "$sudo_file" >/dev/null 2>&1 || true; fi
+				kpanel_account_write_failure "$snapshot" "$current" "アカウントの役割を調整できませんでした。回復が試みられました。" true false
+				return $?
+			fi
+			;;
+		set-ssh-policy)
+			[ "$#" -eq 2 ] && [[ "$1" =~ ^(enabled|disabled)$ ]] && [[ "$2" =~ ^(enabled|key-only|disabled)$ ]] || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			kpanel_account_snapshot_ssh "$snapshot" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			if ! kpanel_account_apply_ssh_policy "$1" "$2"; then kpanel_account_write_failure "$snapshot" "$current" "SSH ログイン ポリシーの適用に失敗したため、回復を試みました" false true; return $?; fi
+			;;
+		disable-root)
+			[ "$#" -eq 0 ] || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			if [ "$(kpanel_account_password_status root)" = locked ] && [ "$(kpanel_account_sshd_effective | awk '{print $3}')" = disabled ]; then rm -rf -- "$snapshot"; kpanel_account_emit unchanged "$current"; return 0; fi
+			kpanel_account_snapshot_core "$snapshot" && kpanel_account_snapshot_ssh "$snapshot" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			if ! passwd -l root >/dev/null 2>&1 || ! kpanel_account_apply_ssh_policy "$(kpanel_account_sshd_effective | awk '{print $1 == "yes" ? "enabled" : "disabled"}')" disabled; then kpanel_account_write_failure "$snapshot" "$current" "ルートを無効にできませんでした。回復を試みました" true true; return $?; fi
+			;;
+		create-admin-disable-root)
+			[ "$#" -eq 3 ] && [ "$3" = --secret-stdin ] || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			username="$1"; credential="$2"; [ "$credential" = password ] && marker=256 || marker=4096
+			kpanel_account_read_secret "$marker" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }; secret="$KPANEL_ACCOUNT_SECRET"
+			kpanel_account_snapshot_core "$snapshot" && kpanel_account_snapshot_ssh "$snapshot" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			role=administrator; [ "$credential" = key ] && role=passwordless-admin
+			if ! kpanel_account_create "$username" "$role" "$credential" "$secret"; then
+				kpanel_account_write_failure "$snapshot" "$current" "代替管理者の作成に失敗したため、回復を試みました" true true
+				return $?
+			fi
+			if ! passwd -l root >/dev/null 2>&1 ||
+				! kpanel_account_apply_ssh_policy "$([ "$credential" = password ] && printf enabled || printf disabled)" disabled; then
+				rm -f -- "$(kpanel_account_sudo_file "$username")" >/dev/null 2>&1 || true
+				userdel -r "$username" >/dev/null 2>&1 || true
+				kpanel_account_write_failure "$snapshot" "$current" "ルートセキュリティの移行に失敗し、回復を試みました" true true
+				return $?
+			fi
+			;;
+		delete)
+			[ "$#" -eq 2 ] && kpanel_account_valid_username "$1" && [ "$1" != root ] && [[ "$2" =~ ^(true|false)$ ]] || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2; }
+			username="$1"; if ! kpanel_account_exists "$username"; then rm -rf -- "$snapshot"; kpanel_account_emit unchanged "$current"; return 0; fi
+			local sudo_file; sudo_file="$(kpanel_account_sudo_file "$username")"
+			kpanel_account_snapshot_core "$snapshot" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }
+			if [ -e "$sudo_file" ]; then cp -p -- "$sudo_file" "$snapshot/sudo" || { rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 1; }; else : > "$snapshot/sudo.absent"; fi
+			if ! { if [ "$2" = true ]; then userdel -r "$username"; else userdel "$username"; fi; }; then
+				if [ "$2" = false ]; then
+					kpanel_account_write_failure "$snapshot" "$current" "アカウントの削除に失敗しました。アカウント データベースを復元しようとしました。" true false
+					return $?
+				fi
+				kpanel_account_restore_core "$snapshot" >/dev/null 2>&1 || true
+				final="$(kpanel_account_version 2>/dev/null || true)"
+				recovery="$(kpanel_system_resource_persist_recovery_snapshot "$snapshot" account-management 2>/dev/null || true)"
+				kpanel_account_error "アカウントとホームディレクトリの削除に失敗しました。ホーム ディレクトリが部分的に削除されている可能性があるため、手動で検査する必要があります。"
+				kpanel_account_emit needs-attention "$final" "$recovery"
+				return 1
+			fi
+			rm -f -- "$sudo_file" || { rm -rf -- "$snapshot"; kpanel_account_emit needs-attention "$(kpanel_account_version 2>/dev/null || true)"; return 1; }
+			;;
+		*) rm -rf -- "$snapshot"; kpanel_account_emit failed "$current"; return 2 ;;
+	esac
+	final="$(kpanel_account_version)" || { rm -rf -- "$snapshot"; kpanel_account_emit needs-attention; return 1; }
+	[ "$final" != "$current" ] || changed=false
+	rm -rf -- "$snapshot"
+	[ "$changed" = true ] && kpanel_account_emit applied "$final" || kpanel_account_emit unchanged "$final"
+}
+
+kpanel_account_run_locked() (
+	local action="$1" expected="$2" lock_file
+	shift 2
+	lock_file="$(kpanel_system_resource_prepare_lock_file)" || { kpanel_account_emit failed; return 1; }
+	exec 9<>"$lock_file" || { kpanel_account_emit failed; return 1; }
+	kpanel_system_resource_lock_path_secure "$lock_file" file 600 || { kpanel_account_emit failed; return 1; }
+	if ! flock -w 5 -x 9 >/dev/null 2>&1; then kpanel_account_emit conflict "$(kpanel_account_version 2>/dev/null || true)"; return 2; fi
+	kpanel_account_action "$action" "$expected" "$@"
+)
+
+kpanel_account_dispatch() {
+	local action="${1:-}"
+	[ "$#" -ge 1 ] || { kpanel_account_emit failed; return 2; }
+	shift
+	case "$action" in
+		status) kpanel_account_status "$@" ;;
+		create|set-password|add-key|delete-key|set-role|set-ssh-policy|disable-root|create-admin-disable-root|delete)
+			[ "$#" -ge 1 ] || { kpanel_account_emit failed; return 2; }
+			local expected="$1"; shift
+			kpanel_account_require true awk cat chpasswd cmp cut getent gpasswd grep head id mkdir mktemp od passwd runuser sed sha256sum ssh-keygen sshd stat tail tr useradd userdel usermod visudo wc || { kpanel_account_emit failed; return $?; }
+			kpanel_account_run_locked "$action" "$expected" "$@"
+			;;
+		*) kpanel_account_error "サポートされていないアカウント管理アクション"; kpanel_account_emit failed; return 2 ;;
+	esac
+}
+
+# KPanel account management protocol end
+
+
 log_menu() {
 	send_stats "システムログ管理ツール"
 
@@ -22139,7 +25988,7 @@ log_menu() {
 		echo "[/var/logディレクトリ占有]"
 		du -sh /var/log 2>/dev/null
 		echo
-		echo "【日記ログ職業】"
+		echo "【日記帳の職業】"
 		journalctl --disk-usage 2>/dev/null
 		echo "========================================"
 	}
@@ -22164,17 +26013,17 @@ log_menu() {
 				read -erp "最新のログ行を表示しますか? [デフォルト 100]:" lines
 				lines=${lines:-100}
 				journalctl -n "$lines" --no-pager
-				read -erp "Enter を押して続行します..."
+				read -erp "続行するには Enter キーを押してください..."
 				;;
 			2)
-				send_stats "查看指定服务日志"
+				send_stats "指定したサービスログを表示する"
 				read -erp "サービス名 (sshd、nginx など) を入力してください:" svc
 				if systemctl list-unit-files | grep -q "^$svc"; then
 					journalctl -u "$svc" -n 100 --no-pager
 				else
 					echo "✘ サービスが存在しないか、ログがありません"
 				fi
-				read -erp "Enter を押して続行します..."
+				read -erp "続行するには Enter キーを押してください..."
 				;;
 			3)
 				send_stats "ログイン/セキュリティログの表示"
@@ -22189,7 +26038,7 @@ log_menu() {
 				else
 					echo "セキュリティログファイルが見つかりません"
 				fi
-				read -erp "Enter を押して続行します..."
+				read -erp "続行するには Enter キーを押してください..."
 				;;
 			4)
 				send_stats "リアルタイム追跡ログ"
@@ -22207,7 +26056,7 @@ log_menu() {
 				;;
 			5)
 				send_stats "古いジャーナル ログをクリーンアップする"
-				echo "⚠️ 清理 journal 日志（安全方式）"
+				echo "⚠️ ジャーナルをクリーンアップします (安全な方法)"
 				echo "1) 過去 7 日間を保存します"
 				echo "2) 過去 3 日間を保存します"
 				echo "3) 最大ログ サイズを 500M に制限する"
@@ -22277,7 +26126,7 @@ env_menu() {
 
 		echo
 		echo "==============================================="
-		read -erp "Enter を押して続行します..."
+		read -erp "続行するには Enter キーを押してください..."
 	}
 
 
@@ -22292,7 +26141,7 @@ env_menu() {
 		else
 			echo "ファイルが存在しません:$file"
 		fi
-		read -erp "Enter を押して続行します..."
+		read -erp "続行するには Enter キーを押してください..."
 	}
 
 	edit_file() {
@@ -22308,7 +26157,7 @@ env_menu() {
 		source "$BASHRC"
 		source "$PROFILE"
 		echo "✔ 環境変数がリロードされました"
-		read -erp "按回车继续..."
+		read -erp "続行するには Enter キーを押してください..."
 	}
 
 	while true; do
@@ -22317,7 +26166,7 @@ env_menu() {
 		echo "現在のユーザー:$USER"
 		echo "--------------------------------------"
 		echo "1. 現在一般的に使用されている環境変数を確認します。"
-		echo "2. 查看 ~/.bashrc"
+		echo "2. ~/.bashrc を表示する"
 		echo "3. ~/.profile を表示する"
 		echo "4. ~/.bashrc を編集する"
 		echo "5. ~/.profile を編集する"
@@ -22436,7 +26285,7 @@ linux_Settings() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}1.   ${gl_bai}スクリプト起動のショートカットキーを設定する${gl_kjlan}2.   ${gl_bai}ログインパスワードを変更する"
 	  echo -e "${gl_kjlan}3.   ${gl_bai}ユーザーパスワードログインモード${gl_kjlan}4.   ${gl_bai}指定されたバージョンの Python をインストールします"
-	  echo -e "${gl_kjlan}5.   ${gl_bai}すべてのポートを開く${gl_kjlan}6.   ${gl_bai}SSH接続ポートの変更"
+	  echo -e "${gl_kjlan}5.   ${gl_bai}すべてのポートを開く${gl_kjlan}6.   ${gl_bai}SSH接続ポートを変更する"
 	  echo -e "${gl_kjlan}7.   ${gl_bai}DNSアドレスを最適化する${gl_kjlan}8.   ${gl_bai}ワンクリックでシステムを再インストールします${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}9.   ${gl_bai}ROOTアカウントを無効にして新しいアカウントを作成する${gl_kjlan}10.  ${gl_bai}スイッチ優先度 ipv4/ipv6"
 	  echo -e "${gl_kjlan}------------------------"
@@ -22444,12 +26293,12 @@ linux_Settings() {
 	  echo -e "${gl_kjlan}13.  ${gl_bai}ユーザー管理${gl_kjlan}14.  ${gl_bai}ユーザー/パスワード生成器"
 	  echo -e "${gl_kjlan}15.  ${gl_bai}システムのタイムゾーン調整${gl_kjlan}16.  ${gl_bai}BBR3アクセラレーションの設定"
 	  echo -e "${gl_kjlan}17.  ${gl_bai}ファイアウォール アドバンスト マネージャー${gl_kjlan}18.  ${gl_bai}ホスト名の変更"
-	  echo -e "${gl_kjlan}19.  ${gl_bai}システムアップデート元の切り替え${gl_kjlan}20.  ${gl_bai}定时任务管理"
+	  echo -e "${gl_kjlan}19.  ${gl_bai}システムアップデート元の切り替え${gl_kjlan}20.  ${gl_bai}スケジュールされたタスクの管理"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}21.  ${gl_bai}ネイティブホスト解像度${gl_kjlan}22.  ${gl_bai}SSH防御プログラム"
-	  echo -e "${gl_kjlan}23.  ${gl_bai}限流自动关机                       ${gl_kjlan}24.  ${gl_bai}用户密钥登录模式"
+	  echo -e "${gl_kjlan}23.  ${gl_bai}電流制限自動シャットダウン${gl_kjlan}24.  ${gl_bai}ユーザーキーログインモード"
 	  echo -e "${gl_kjlan}25.  ${gl_bai}TG-bot システムの監視と早期警告${gl_kjlan}26.  ${gl_bai}OpenSSH の高リスク脆弱性を修正"
-	  echo -e "${gl_kjlan}27.  ${gl_bai}Red Hat Linux カーネルのアップグレード${gl_kjlan}28.  ${gl_bai}Linux系统内核参数优化 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}27.  ${gl_bai}Red Hat Linux カーネルのアップグレード${gl_kjlan}28.  ${gl_bai}Linuxシステムのカーネルパラメータの最適化${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}29.  ${gl_bai}ウイルススキャンツール${gl_huang}★${gl_bai}                     ${gl_kjlan}30.  ${gl_bai}ファイルマネージャー"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}31.  ${gl_bai}システム言語を切り替える${gl_kjlan}32.  ${gl_bai}コマンドライン美化ツール${gl_huang}★${gl_bai}"
@@ -22461,7 +26310,7 @@ linux_Settings() {
 	  echo -e "${gl_kjlan}41.  ${gl_bai}システムログ管理ツール${gl_huang}★${gl_bai}                 ${gl_kjlan}42.  ${gl_bai}システム変数管理ツール"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}61.  ${gl_bai}掲示板${gl_kjlan}66.  ${gl_bai}ワンストップのシステムチューニング${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}99.  ${gl_bai}重启服务器                         ${gl_kjlan}100. ${gl_bai}プライバシーとセキュリティ"
+	  echo -e "${gl_kjlan}99.  ${gl_bai}サーバーを再起動します${gl_kjlan}100. ${gl_bai}プライバシーとセキュリティ"
 	  echo -e "${gl_kjlan}101. ${gl_bai}k コマンドの高度な使用法${gl_huang}★${gl_bai}                    ${gl_kjlan}102. ${gl_bai}Tech Lion スクリプトをアンインストールする"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}メインメニューに戻る"
@@ -22511,7 +26360,7 @@ linux_Settings() {
 			echo -e "現在のPythonのバージョン番号:${gl_huang}$VERSION${gl_bai}"
 			echo "------------"
 			echo "推奨バージョン: 3.12 3.11 3.10 3.9 3.8 2.7"
-			echo "他のバージョンを確認してください: https://www.python.org/downloads/"
+			echo "他のバージョンを確認する: https://www.python.org/downloads/"
 			echo "------------"
 			read -e -p "インストールする Python のバージョン番号を入力します (終了するには 0 を入力します)。" py_new_v
 
@@ -22600,7 +26449,7 @@ EOF
 				clear
 				sed -i 's/^\s*#\?\s*Port/Port/' /etc/ssh/sshd_config
 
-				# 读取当前的 SSH 端口号
+				# 現在の SSH ポート番号を読み取ります
 				local current_port=$(grep -E '^ *Port [0-9]+' /etc/ssh/sshd_config | awk '{print $2}')
 
 				# 現在の SSH ポート番号を出力する
@@ -22668,7 +26517,7 @@ EOF
 			send_stats "v4/v6 の優先順位を設定する"
 			while true; do
 				clear
-				echo "设置v4/v6优先级"
+				echo "v4/v6 の優先順位を設定する"
 				echo "------------------------"
 
 
@@ -22692,8 +26541,8 @@ EOF
 						;;
 					2)
 						rm -f /etc/gai.conf
-						echo "最初にIPv6に切り替えました"
-						send_stats "最初にIPv6に切り替えました"
+						echo "IPv6優先に切り替えました"
+						send_stats "IPv6優先に切り替えました"
 						;;
 
 					3)
@@ -22746,7 +26595,7 @@ EOF
 
 					;;
 				  3)
-					send_stats "已设置4G虚拟内存"
+					send_stats "4G仮想メモリが設定されました"
 					add_swap 4096
 
 					;;
@@ -22786,7 +26635,7 @@ EOF
 				  echo ""
 				  echo "アカウント操作"
 				  echo "------------------------"
-				  echo "1. 创建普通用户             2. 创建高级用户"
+				  echo "1. 通常ユーザーを作成します。 2. 上級ユーザーを作成します。"
 				  echo "------------------------"
 				  echo "3. 最高の権限を付与する 4. 最高の権限を削除する"
 				  echo "------------------------"
@@ -22860,7 +26709,7 @@ EOF
 				local first_name_index=$((RANDOM % ${#first_names[@]}))
 				local last_name_index=$((RANDOM % ${#last_names[@]}))
 				local user_name="${first_names[$first_name_index]} ${last_names[$last_name_index]}"
-				echo "随机用户姓名 $i: $user_name"
+				echo "ランダムなユーザー名$i: $user_name"
 			done
 
 			echo ""
@@ -22911,15 +26760,15 @@ EOF
 				echo "タイムゾーンスイッチ"
 				echo "------------------------"
 				echo "アジア"
-				echo "1.  中国上海时间             2.  中国香港时间"
+				echo "1. 中国上海時間 2. 中国香港時間"
 				echo "3. 東京、日本時間 4. ソウル、韓国時間"
-				echo "5.  新加坡时间               6.  印度加尔各答时间"
+				echo "5. シンガポール時間 6. インド、コルカタ時間"
 				echo "7. アラブ首長国連邦、ドバイ時間 8. オーストラリア、シドニー時間"
-				echo "9.  泰国曼谷时间"
+				echo "9. タイ・バンコク時間"
 				echo "------------------------"
 				echo "ヨーロッパ"
 				echo "11. ロンドン、イギリス時間 12. パリ、フランス時間"
-				echo "13. ベルリン、ドイツ時間 14. モスクワ、ロシア時間"
+				echo "13. ベルリン時間、ドイツ 14. モスクワ時間、ロシア"
 				echo "15. ユトレヒト時間、オランダ 16. マドリッド時間、スペイン"
 				echo "------------------------"
 				echo "アメリカ"
@@ -23043,7 +26892,7 @@ EOF
 				  bash <(curl -sSL https://linuxmirrors.cn/main.sh) --abroad
 				  ;;
 			  4)
-				  send_stats "智能切换更新源"
+				  send_stats "アップデートソースのインテリジェントな切り替え"
 				  switch_mirror false false
 				  ;;
 
@@ -23068,7 +26917,7 @@ EOF
 				  echo "------------------------"
 				  echo "1. スケジュールされたタスクを追加します。 2. スケジュールされたタスクを削除します。 3. スケジュールされたタスクを編集します。"
 				  echo "------------------------"
-				  echo "0. 返回上一级选单"
+				  echo "0. 前のメニューに戻る"
 				  echo "------------------------"
 				  read -e -p "選択肢を入力してください:" sub_choice
 
@@ -23180,7 +27029,7 @@ EOF
 					# しきい値_gbの値を取得する
 					local rx_threshold_gb=$(grep -oP 'rx_threshold_gb=\K\d+' ~/Limiting_Shut_down.sh)
 					local tx_threshold_gb=$(grep -oP 'tx_threshold_gb=\K\d+' ~/Limiting_Shut_down.sh)
-					echo -e "${gl_lv}当前设置的进站限流阈值为: ${gl_huang}${rx_threshold_gb}${gl_lv}G${gl_bai}"
+					echo -e "${gl_lv}現在設定されている受信トラフィック制限のしきい値は次のとおりです。${gl_huang}${rx_threshold_gb}${gl_lv}G${gl_bai}"
 					echo -e "${gl_lv}現在設定されている送信トラフィック制限のしきい値は次のとおりです。${gl_huang}${tx_threshold_gb}${gl_lv}GB${gl_bai}"
 				else
 					echo -e "${gl_hui}電流制限シャットダウン機能は現在有効になっていません。${gl_bai}"
@@ -23207,25 +27056,25 @@ EOF
 					read -e -p "トラフィックのリセット日を入力してください (デフォルトは毎月 1 日にリセットされます)。" cz_day
 					cz_day=${cz_day:-1}
 
-					cd ~
-					curl -Ss -o ~/Limiting_Shut_down.sh ${gh_proxy}raw.githubusercontent.com/kejilion/sh/main/Limiting_Shut_down1.sh
-					chmod +x ~/Limiting_Shut_down.sh
-					sed -i "s/110/$rx_threshold_gb/g" ~/Limiting_Shut_down.sh
-					sed -i "s/120/$tx_threshold_gb/g" ~/Limiting_Shut_down.sh
 					check_crontab_installed
-					crontab -l | grep -v '~/Limiting_Shut_down.sh' | crontab -
-					(crontab -l ; echo "* * * * * ~/Limiting_Shut_down.sh") | crontab - > /dev/null 2>&1
-					crontab -l | grep -v 'reboot' | crontab -
-					(crontab -l ; echo "0 1 $cz_day * * reboot") | crontab - > /dev/null 2>&1
-					echo "電流制限シャットダウンが設定されています"
-					send_stats "限流关机已设置"
+					local traffic_version
+					traffic_version="$(kpanel_network_operations_traffic_version)"
+					if KJ_NETWORK_OPERATIONS_NONINTERACTIVE=1 kpanel_network_operations_traffic_run_locked enable "$traffic_version" "$rx_threshold_gb" "$tx_threshold_gb" "$cz_day"; then
+						echo "電流制限シャットダウンが設定されています"
+						send_stats "電流制限シャットダウンが設定されています"
+					else
+						echo "電流制限シャットダウン設定に失敗しました。上記のエラーに従って構成を確認してください。"
+					fi
 					;;
 				  2)
 					check_crontab_installed
-					crontab -l | grep -v '~/Limiting_Shut_down.sh' | crontab -
-					crontab -l | grep -v 'reboot' | crontab -
-					rm ~/Limiting_Shut_down.sh
-					echo "電流制限シャットダウン機能がオフになる"
+					local traffic_version
+					traffic_version="$(kpanel_network_operations_traffic_version)"
+					if KJ_NETWORK_OPERATIONS_NONINTERACTIVE=1 kpanel_network_operations_traffic_run_locked disable "$traffic_version"; then
+						echo "電流制限シャットダウン機能がオフになる"
+					else
+						echo "電流制限シャットダウンをオフにできませんでした。上記のエラーに従って設定を確認してください。"
+					fi
 					;;
 				  *)
 					break
@@ -23406,7 +27255,7 @@ EOF
 			  echo -e "9. DNS アドレスを自動的に最適化する${gl_huang}海外：1.1.1.1 8.8.8.8 国内：223.5.5.5${gl_bai}"
 		  	  echo -e "10. ネットワークを次のように設定します。${gl_huang}IPv4優先度${gl_bai}"
 			  echo -e "11. 基本ツールのインストール${gl_huang}docker wget sudo tar unzip socat btop nano vim${gl_bai}"
-			  echo -e "12. Linuxシステムのカーネルパラメータの最適化${gl_huang}自动根据网络环境调优${gl_bai}"
+			  echo -e "12. Linuxシステムのカーネルパラメータの最適化${gl_huang}ネットワーク環境に応じて自動チューニング${gl_bai}"
 			  echo "------------------------------------------------"
 			  read -e -p "ワンクリックメンテナンスを実行してもよろしいですか? (はい/いいえ):" choice
 
@@ -23414,54 +27263,20 @@ EOF
 				[Yy])
 				  clear
 				  send_stats "ワンストップチューニングが始まります"
-				  echo "------------------------------------------------"
-				  switch_mirror false false
-				  linux_update
-				  echo -e "[${gl_lv}OK${gl_bai}】1/12。システムを最新のものにアップデートする"
-
-				  echo "------------------------------------------------"
-				  linux_clean
-				  echo -e "[${gl_lv}OK${gl_bai}】2/12。システムのジャンクファイルをクリーンアップする"
-
-				  echo "------------------------------------------------"
-				  add_swap 1024
-				  echo -e "[${gl_lv}OK${gl_bai}】3/12。仮想メモリを設定する${gl_huang}1G${gl_bai}"
-
-				  echo "------------------------------------------------"
-				  new_ssh_port 5522
-				  echo -e "[${gl_lv}OK${gl_bai}】4/12。 SSH ポート番号を次のように設定します。${gl_huang}5522${gl_bai}"
-				  echo "------------------------------------------------"
-				  f2b_install_sshd
+				  kpanel_system_tuning_menu_item system-update 1 "システムを最新のものにアップデートする" || break
+				  kpanel_system_tuning_menu_item system-cleanup 2 "システムのジャンクファイルをクリーンアップ" || break
+				  kpanel_system_tuning_menu_item swap-1g 3 "仮想メモリを設定する${gl_huang}1G${gl_bai}" || break
+				  kpanel_system_tuning_menu_item ssh-port-5522 4 "SSH ポート番号を次のように設定します。${gl_huang}5522${gl_bai}" || break
+				  kpanel_system_tuning_menu_item ssh-defense 5 "SSH ブルート フォース クラッキングを防ぐために、fail2ban を開始します。" || break
 				  cd ~
 				  f2b_status
-				  echo -e "[${gl_lv}OK${gl_bai}】5/12。 SSH ブルート フォース クラッキングを防ぐために、fail2ban を開始します。"
-
-				  echo "------------------------------------------------"
-				  echo -e "[${gl_lv}OK${gl_bai}】6/12。すべてのポートを開く"
-
-				  echo "------------------------------------------------"
-				  bbr_on
-				  echo -e "[${gl_lv}OK${gl_bai}】7/12。開ける${gl_huang}BBR${gl_bai}加速する"
-
-				  echo "------------------------------------------------"
-				  set_timedate Asia/Shanghai
-				  echo -e "[${gl_lv}OK${gl_bai}】8/12。タイムゾーンを次のように設定します${gl_huang}上海${gl_bai}"
-
-				  echo "------------------------------------------------"
-				  auto_optimize_dns
-				  echo -e "[${gl_lv}OK${gl_bai}】9/12。 DNSアドレスを自動的に最適化する${gl_huang}${gl_bai}"
-				  echo "------------------------------------------------"
-				  prefer_ipv4
-				  echo -e "[${gl_lv}OK${gl_bai}】10/12。ネットワークを次のように設定します${gl_huang}IPv4優先度${gl_bai}}"
-
-				  echo "------------------------------------------------"
-				  install_docker
-				  install wget sudo tar unzip socat btop nano vim
-				  echo -e "[${gl_lv}OK${gl_bai}】11/12。基本的なツールをインストールする${gl_huang}docker wget sudo tar unzip socat btop nano vim${gl_bai}"
-				  echo "------------------------------------------------"
-
-				  curl -sS ${gh_proxy}raw.githubusercontent.com/kejilion/sh/refs/heads/main/network-optimize.sh | bash
-				  echo -e "[${gl_lv}OK${gl_bai}】12/12。 Linuxシステムのカーネルパラメータの最適化"
+				  kpanel_system_tuning_menu_item firewall-open-all 6 "すべてのポートを開く" || break
+				  kpanel_system_tuning_menu_item bbr 7 "オンにする${gl_huang}BBR${gl_bai}加速する" || break
+				  kpanel_system_tuning_menu_item timezone-shanghai 8 "タイムゾーンを次のように設定します${gl_huang}上海${gl_bai}" || break
+				  kpanel_system_tuning_menu_item dns-auto 9 "DNS アドレスを自動的に最適化する" || break
+				  kpanel_system_tuning_menu_item ipv4-preferred 10 "ネットワークを次のように設定します${gl_huang}IPv4優先度${gl_bai}" || break
+				  kpanel_system_tuning_menu_item basic-tools 11 "基本的なツールをインストールする${gl_huang}docker wget sudo tar unzip socat btop nano vim${gl_bai}" || break
+				  kpanel_system_tuning_menu_item kernel-auto 12 "Linuxシステムのカーネルパラメータの最適化" || break
 				  echo -e "${gl_lv}ワンストップでのシステムチューニングが完了${gl_bai}"
 
 				  ;;
@@ -23687,7 +27502,7 @@ linux_file() {
 					continue
 				fi
 
-				read -e -p "宛先パス (新しいファイル名またはディレクトリ名を含む) を入力してください:" dest_path
+				read -e -p "宛先パス (新しいファイルまたはディレクトリ名を含む) を入力してください:" dest_path
 				if [ -z "$dest_path" ]; then
 					echo "エラー: 宛先パスを入力してください。"
 					send_stats "ファイルまたはディレクトリの移動に失敗しました: 宛先パスが指定されていません"
@@ -23707,7 +27522,7 @@ linux_file() {
 					continue
 				fi
 
-				read -e -p "宛先パス (新しいファイル名またはディレクトリ名を含む) を入力してください:" dest_path
+				read -e -p "宛先パス (新しいファイルまたはディレクトリ名を含む) を入力してください:" dest_path
 				if [ -z "$dest_path" ]; then
 					echo "エラー: 宛先パスを入力してください。"
 					send_stats "ファイルまたはディレクトリのコピーに失敗しました: 宛先パスが指定されていません"
@@ -23949,7 +27764,7 @@ echo "------------------------"
 echo -e "${gl_lan}DMIT 四半期あたり 28 ドル 米国 CN2GIA 1 コア 2G メモリ 20G ハード ドライブ 1 か月あたり 800G トラフィック${gl_bai}"
 echo -e "${gl_bai}URL: https://www.dmit.io/aff.php?aff=4966&pid=100${gl_bai}"
 echo "------------------------"
-echo -e "${gl_zi}V.PS 月額 6.9 ドル 東京ソフトバンク 2 コア 1G メモリ 20G ハードドライブ 月額 1T トラフィック${gl_bai}"
+echo -e "${gl_zi}V.PS 月額 6.9 ドル 東京ソフトバンク 2 コア 1G メモリ 20G ハードドライブ 月額トラフィック 1T${gl_bai}"
 echo -e "${gl_bai}URL：https://vps.hosting/cart/tokyo-cloud-kvm-vps/?id=148&?affid=1355&?affid=1355${gl_bai}"
 echo "------------------------"
 echo -e "${gl_kjlan}さらに人気のある VPS セール${gl_bai}"
@@ -24258,7 +28073,7 @@ echo "ソフトウェア起動 k start sshd | sshdを起動します"
 echo "ソフトウェア停止 k 停止 sshd | k ストップ sshd"
 echo "ソフトウェア再起動 k 再起動 sshd | k sshdを再起動します"
 echo "ソフトウェアのステータスを確認します。 k ステータス sshd | kステータスsshd"
-echo "k ドッカーを有効にする | k 自動開始ドッカー | k 起動時に docker を起動します"
+echo "k ドッカーを有効にする | k 自動開始ドッカー | k ソフトウェアの起動時に Docker を有効にする"
 echo "ドメイン名証明書アプリケーション k ssl"
 echo "ドメイン名証明書の有効期限のクエリ k ssl ps"
 echo "docker 管理プレーン k docker"
@@ -24268,10 +28083,10 @@ echo "docker イメージ管理 k docker img |k docker image"
 echo "LDNMP サイト管理 k Web"
 echo "LDNMP キャッシュのクリーニング k Web キャッシュ"
 echo "WordPress をインストールします。 kワードプレス | k wp xxx.com"
-echo "リバース プロキシをインストールします k fd |k rp |k リバース プロキシ |k fd xxx.com"
+echo "リバース プロキシ k fd |k rp |k リバース プロキシ |k fd xxx.com をインストールします。"
 echo "ロード バランシングのインストール k ロード バランシング |k ロード バランシング"
 echo "L4 ロード バランシング k ストリーム |k L4 ロード バランシングをインストールする"
-echo "防火墙面板          k fhq |k 防火墙"
+echo "ファイアウォール パネル k fhq |k ファイアウォール"
 echo "ポートを開きます k dkdk 8080 |k ポートを開きます 8080"
 echo "ポート k gbdk 7800 を閉じる |k ポート 7800 を閉じる"
 echo "リリース IP k fxip 127.0.0.0/8 |k リリース IP 127.0.0.0/8"
@@ -24280,7 +28095,7 @@ echo "コマンド お気に入り k お気に入り | k コマンドのお気�
 echo "アプリケーションマーケット管理kアプリ"
 echo "申請番号の迅速な管理 k app 26 | kアプリ1パネル | k アプリ npm"
 echo "フェイル 2 バン管理 k フェイル 2 バン | k f2b [ステータス|有効|無効]"
-echo "显示系统信息        k info"
+echo "システム情報を表示 k info"
 echo "ROOT キー管理 k sshkey"
 echo "SSH 公開キーのインポート (URL) k sshkey <url>"
 echo "SSH 公開キーのインポート (GitHub) k sshkey github <user>"
@@ -24544,7 +28359,7 @@ else
 				ssl_ps
 			elif [ -z "$1" ]; then
 				add_ssl
-				send_stats "快速申请证书"
+				send_stats "すぐに証明書を申請してください"
 			elif [ -n "$1" ]; then
 				add_ssl "$1"
 				send_stats "すぐに証明書を申請してください"
@@ -24561,7 +28376,7 @@ else
 					install_docker
 					;;
 				ps|容器)
-					send_stats "快捷容器管理"
+					send_stats "迅速なコンテナ管理"
 					docker_ps
 					;;
 				img|镜像)
@@ -24600,8 +28415,20 @@ else
 			if [ "${1:-}" = "node" ]; then
 				shift
 				kpanel_node_dispatch "$@"
+			elif [ "${1:-}" = "system-resource" ]; then
+				shift
+				kpanel_system_resource_dispatch "$@"
+			elif [ "${1:-}" = "network-operations" ]; then
+				shift
+				kpanel_network_operations_dispatch "$@"
+			elif [ "${1:-}" = "account-management" ]; then
+				shift
+				kpanel_account_dispatch "$@"
+			elif [ "${1:-}" = "system-tuning" ]; then
+				shift
+				kpanel_system_tuning_dispatch "$@"
 			else
-				echo "使用法: k kpanel ノード結合 <認証> |ステータス |更新 |アンインストールする" >&2
+				echo "使用法: k kpanel ノード ... |システムリソース ... |ネットワーク操作 ... |アカウント管理 ... |システムチューニング ..." >&2
 				return 2 2>/dev/null || exit 2
 			fi
 			;;
